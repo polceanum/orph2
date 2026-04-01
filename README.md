@@ -19,6 +19,12 @@ This repo is aimed at a narrow first question:
 
 > Does an explicit, revisable multi-hypothesis controller improve recovery from wrong framings compared with simpler baselines?
 
+The broader thesis behind that question is:
+
+- OOD failure is often a belief-management failure, not just a capacity failure
+- standard models tend to commit too early to one latent interpretation
+- robust solving may require explicit competing hypotheses, testable rules, active probing, and recovery
+
 ## Canonical workflow
 
 Use these as the primary entrypoints:
@@ -60,6 +66,10 @@ Implemented:
 - recurrent and trivial baselines
 - training, evaluation, and inspection scripts
 - basic tests and experiment configs
+
+Current main known weakness:
+
+- premature belief collapse, especially early entropy collapse over approaches and rules
 
 ## Recommended first experiments
 
