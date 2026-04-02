@@ -18,13 +18,17 @@ class HypothesisSolver(nn.Module):
         rule_slots, rule_scores,_=self.rule_proposer(context_tokens, context_summary, approach_slots, approach_scores)
         b,_,d=approach_slots.shape
         return BeliefState(approach_slots, approach_scores, rule_slots, rule_scores, approach_slots.new_zeros((b,0,d)), approach_scores.new_zeros((b,0)), approach_scores.new_zeros((b,1)), approach_scores.new_zeros((b,1)))
+
+    def select_probe_index(self, probe_logits: torch.Tensor, step: int, episode: EpisodeBatch) -> torch.Tensor:
+        return probe_logits.argmax(dim=-1)
+
     def forward(self, episode:EpisodeBatch, probe_executor):
         context_tokens, context_summary=self.encoder(episode.initial_tokens, episode.initial_mask)
         belief=self.initialize_beliefs(context_tokens, context_summary)
         logs=[]
         for step, candidate_probe_embs in enumerate(episode.candidate_probe_embs):
             probe_logits=self.probe_policy(context_summary, belief.approach_slots, belief.approach_scores, belief.rule_slots, belief.rule_scores, candidate_probe_embs)
-            chosen_idx=probe_logits.argmax(dim=-1)
+            chosen_idx=self.select_probe_index(probe_logits, step, episode)
             chosen_probe_tokens=batched_index_select(episode.candidate_probe_tokens[step], chosen_idx)
             observation_tokens=probe_executor(episode, step, chosen_idx)
             belief=self.belief_updater(context_summary, belief.approach_slots, belief.approach_scores, belief.rule_slots, belief.rule_scores, chosen_probe_tokens, observation_tokens, (belief.archive_slots, belief.archive_scores))

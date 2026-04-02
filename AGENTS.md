@@ -67,6 +67,13 @@ python scripts/eval_baselines.py --config configs/small.yaml \
   --recurrent-ckpt artifacts/recurrent_last.pt
 ```
 
+Small ablations:
+
+```bash
+python scripts/train_random_probe.py --config configs/small.yaml
+python scripts/train_no_rules.py --config configs/small.yaml
+```
+
 Larger train:
 
 ```bash

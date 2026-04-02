@@ -38,6 +38,13 @@ python scripts/eval_baselines.py --config configs/small.yaml \
   --recurrent-ckpt artifacts/recurrent_last.pt
 ```
 
+Ablation entrypoints:
+
+```bash
+python scripts/train_random_probe.py --config configs/small.yaml
+python scripts/train_no_rules.py --config configs/small.yaml
+```
+
 Compatibility scripts are also available:
 
 - `python scripts/train.py --config configs/debug.yaml`
