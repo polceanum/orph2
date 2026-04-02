@@ -74,6 +74,16 @@ python scripts/train_random_probe.py --config configs/small.yaml
 python scripts/train_no_rules.py --config configs/small.yaml
 ```
 
+Multi-seed ablation suite:
+
+```bash
+python scripts/run_ablation_suite.py \
+  --config configs/small_tuned.yaml \
+  --seeds 0,1,2 \
+  --tag small_tuned_suite_v1 \
+  --eval-batches 30
+```
+
 Larger train:
 
 ```bash

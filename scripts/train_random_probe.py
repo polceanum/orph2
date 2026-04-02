@@ -129,6 +129,7 @@ def main():
         loss_weights=cfg_get(cfg, "train.loss_weights", {"task": 1.0, "probe": 0.2}),
         approach_entropy_weight=float(cfg_get(cfg, "train.approach_entropy_weight", 0.0)),
         rule_entropy_weight=float(cfg_get(cfg, "train.rule_entropy_weight", 0.0)),
+        rule_score_spread_weight=float(cfg_get(cfg, "train.rule_score_spread_weight", 0.0)),
     )
 
     loader = torch.utils.data.DataLoader(dataset, batch_size=None)

@@ -24,7 +24,11 @@ from ood_solver.models.hypothesis_solver import HypothesisSolver
 from ood_solver.baselines.no_rules_baseline import NoRulesSolver
 from ood_solver.baselines.random_probe_baseline import RandomProbeSolver
 from ood_solver.baselines.recurrent_baseline import RecurrentBaseline
-from ood_solver.training.metrics import entropy_from_logits
+from ood_solver.training.metrics import (
+    entropy_from_logits,
+    score_spread_from_logits,
+    top1_margin_from_logits,
+)
 from ood_solver.utils import move_episode_to_device
 
 
@@ -182,26 +186,44 @@ def run_eval(model, env, episodes, device: str, structured: bool) -> dict:
             logits, belief, logs = model(batch, probe_executor)
             approach_entropy = entropy_from_logits(belief.approach_scores).item()
             rule_entropy = entropy_from_logits(belief.rule_scores).item()
+            approach_top1_margin = top1_margin_from_logits(belief.approach_scores).item()
+            rule_top1_margin = top1_margin_from_logits(belief.rule_scores).item()
+            rule_score_spread = score_spread_from_logits(belief.rule_scores).item()
             surprise_mean = belief.surprise.mean().item()
             probe_entropy = 0.0
             diagnostic_probe_acc = 0.0
+            step_rule_top1_margin = 0.0
+            step_rule_score_spread = 0.0
+            step_probe_top1_margin = 0.0
             if len(logs) > 0:
                 for step_idx, step_log in enumerate(logs):
                     probe_entropy += entropy_from_logits(step_log["probe_logits"]).item()
+                    step_probe_top1_margin += top1_margin_from_logits(step_log["probe_logits"]).item()
+                    step_rule_top1_margin += top1_margin_from_logits(step_log["rule_scores"]).item()
+                    step_rule_score_spread += score_spread_from_logits(step_log["rule_scores"]).item()
                     if batch.diagnostic_probe_targets is not None:
                         chosen = step_log["chosen_idx"]
                         target = batch.diagnostic_probe_targets[step_idx]
                         diagnostic_probe_acc += (chosen == target).float().mean().item()
                 probe_entropy /= len(logs)
                 diagnostic_probe_acc /= len(logs)
+                step_probe_top1_margin /= len(logs)
+                step_rule_top1_margin /= len(logs)
+                step_rule_score_spread /= len(logs)
                 probe_steps += 1
         else:
             logits, aux = model(batch, probe_executor)
             approach_entropy = float("nan")
             rule_entropy = float("nan")
+            approach_top1_margin = float("nan")
+            rule_top1_margin = float("nan")
+            rule_score_spread = float("nan")
             surprise_mean = float("nan")
             probe_entropy = float("nan")
             diagnostic_probe_acc = float("nan")
+            step_rule_top1_margin = float("nan")
+            step_rule_score_spread = float("nan")
+            step_probe_top1_margin = float("nan")
 
         b, l, v = logits.shape
         loss = ce(logits.reshape(b * l, v), batch.final_target.reshape(b * l)).item()
@@ -214,12 +236,24 @@ def run_eval(model, env, episodes, device: str, structured: bool) -> dict:
             overall["approach_entropy"] += approach_entropy
         if not np.isnan(rule_entropy):
             overall["rule_entropy"] += rule_entropy
+        if not np.isnan(approach_top1_margin):
+            overall["approach_top1_margin"] += approach_top1_margin
+        if not np.isnan(rule_top1_margin):
+            overall["rule_top1_margin"] += rule_top1_margin
+        if not np.isnan(rule_score_spread):
+            overall["rule_score_spread"] += rule_score_spread
         if not np.isnan(surprise_mean):
             overall["surprise_mean"] += surprise_mean
         if not np.isnan(probe_entropy):
             overall["probe_entropy"] += probe_entropy
         if not np.isnan(diagnostic_probe_acc):
             overall["diagnostic_probe_acc"] += diagnostic_probe_acc
+        if not np.isnan(step_rule_top1_margin):
+            overall["step_rule_top1_margin"] += step_rule_top1_margin
+        if not np.isnan(step_rule_score_spread):
+            overall["step_rule_score_spread"] += step_rule_score_spread
+        if not np.isnan(step_probe_top1_margin):
+            overall["step_probe_top1_margin"] += step_probe_top1_margin
         total_batches += 1
 
         for i in range(batch.mechanism_id.size(0)):
@@ -233,9 +267,15 @@ def run_eval(model, env, episodes, device: str, structured: bool) -> dict:
             "seq_acc": overall["seq_acc"] / max(total_batches, 1),
             "approach_entropy": overall["approach_entropy"] / max(total_batches, 1) if structured else None,
             "rule_entropy": overall["rule_entropy"] / max(total_batches, 1) if structured else None,
+            "approach_top1_margin": overall["approach_top1_margin"] / max(total_batches, 1) if structured else None,
+            "rule_top1_margin": overall["rule_top1_margin"] / max(total_batches, 1) if structured else None,
+            "rule_score_spread": overall["rule_score_spread"] / max(total_batches, 1) if structured else None,
             "surprise_mean": overall["surprise_mean"] / max(total_batches, 1) if structured else None,
             "probe_entropy": overall["probe_entropy"] / max(probe_steps, 1) if structured else None,
             "diagnostic_probe_acc": overall["diagnostic_probe_acc"] / max(probe_steps, 1) if structured else None,
+            "step_rule_top1_margin": overall["step_rule_top1_margin"] / max(probe_steps, 1) if structured else None,
+            "step_rule_score_spread": overall["step_rule_score_spread"] / max(probe_steps, 1) if structured else None,
+            "step_probe_top1_margin": overall["step_probe_top1_margin"] / max(probe_steps, 1) if structured else None,
         },
         "by_mechanism": {},
     }
