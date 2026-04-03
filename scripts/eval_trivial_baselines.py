@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ood_solver.envs.hidden_mechanism_seq import HiddenMechanismSequenceEnv
+from ood_solver.envs.config import build_env_from_cfg
 
 
 def set_seed(seed: int) -> None:
@@ -115,12 +116,11 @@ def main():
     cfg = load_config(args.config)
     set_seed(int(cfg_get(cfg, "seed", 0)))
 
-    env = HiddenMechanismSequenceEnv(
-        vocab_size=int(cfg_get(cfg, "env.vocab_size", 16)),
-        seq_len=int(cfg_get(cfg, "env.seq_len", 12)),
-        num_probe_steps=int(cfg_get(cfg, "env.num_probe_steps", 4)),
-        num_candidate_probes=int(cfg_get(cfg, "env.num_candidate_probes", 8)),
-        seed=int(cfg_get(cfg, "seed", 0) + 777),
+    env = build_env_from_cfg(
+        cfg,
+        section="eval.id" if cfg_get(cfg, "eval.id", None) is not None else "env",
+        seed=int(cfg_get(cfg, "seed", 0)),
+        seed_offset=int(cfg_get(cfg, "eval.seed_offset", 777)),
     )
 
     result = eval_trivial(env, cfg, args.num_batches)

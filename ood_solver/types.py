@@ -24,3 +24,5 @@ class BeliefState:
     archive_scores: torch.Tensor
     surprise: torch.Tensor
     stagnation: torch.Tensor
+    demo_logits: Optional[torch.Tensor] = None
+    demo_targets: Optional[torch.Tensor] = None

@@ -18,10 +18,23 @@ train:
   batch_size: 32
   lr: 3e-4
   weight_decay: 1e-4
+  grad_clip: 1.0
   steps_per_epoch: 300
   epochs: 15
   approach_entropy_weight: 0.01
   rule_entropy_weight: 0.005
+  monitor:
+    log_every_steps: 50
+    metric: eval_seq_acc_lcb
+    metric_ema_beta: 0.6
+    mode: max
+    min_delta: 0.001
+    patience: 5
+    warmup_epochs: 3
+    enable_early_stop: true
+    eval_batches: 8
+    eval_section: eval.id
+    eval_seed_offset: 777
   loss_weights:
     task: 1.0
     probe: 0.2

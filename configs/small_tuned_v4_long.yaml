@@ -1,0 +1,28 @@
+seed: 0
+
+env:
+  vocab_size: 16
+  seq_len: 12
+  num_probe_steps: 4
+  num_candidate_probes: 8
+
+model:
+  d_model: 64
+  nhead: 4
+  num_layers: 2
+  num_approaches: 4
+  num_rules: 8
+  archive_size: 16
+
+train:
+  batch_size: 32
+  lr: 2e-4
+  weight_decay: 1e-4
+  steps_per_epoch: 120
+  epochs: 10
+  approach_entropy_weight: 0.008
+  rule_entropy_weight: 0.004
+  rule_score_spread_weight: 0.01
+  loss_weights:
+    task: 1.0
+    probe: 0.2

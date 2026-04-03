@@ -1,0 +1,5 @@
+scenarios:
+  - name: bridge_08_local_param_extrap_shared_tokens_taskonly
+    description: LOCAL mechanism with shared token distribution and extrapolated shift-parameter range.
+    config: configs/bridges/bridge_08_local_param_extrap_shared_tokens_taskonly.yaml
+    oracle_config: configs/bridges/bridge_08_local_param_extrap_shared_tokens_oracle_taskonly.yaml

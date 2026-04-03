@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from ood_solver.data.dataset import SyntheticEpisodeDataset
 from ood_solver.envs.hidden_mechanism_seq import HiddenMechanismSequenceEnv
+from ood_solver.envs.config import build_env_from_cfg
 from ood_solver.models.approach import ApproachProposer
 from ood_solver.models.belief_updater import BeliefUpdater
 from ood_solver.models.encoder import SimpleSequenceEncoder
@@ -58,6 +59,8 @@ def build_model(cfg: dict, device: str) -> HypothesisSolver:
             nhead=int(cfg_get(cfg, "model.nhead", 4)),
             num_layers=int(cfg_get(cfg, "model.num_layers", 2)),
             max_len=max(seq_len * 8, int(cfg_get(cfg, "model.max_len", seq_len * 8))),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
         approach_proposer=ApproachProposer(
             d_model=d_model,
@@ -72,7 +75,17 @@ def build_model(cfg: dict, device: str) -> HypothesisSolver:
             d_model=d_model,
             archive_size=int(cfg_get(cfg, "model.archive_size", 16)),
         ),
-        solver_head=SolverHead(vocab_size=vocab_size, d_model=d_model),
+        solver_head=SolverHead(
+            vocab_size=vocab_size,
+            d_model=d_model,
+            use_local_adapter=bool(cfg_get(cfg, "model.use_local_adapter", False)),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
+            use_modulo_shift_adapter=bool(cfg_get(cfg, "model.use_modulo_shift_adapter", False)),
+            use_demo_shift_prior=bool(cfg_get(cfg, "model.use_demo_shift_prior", False)),
+        ),
+        soft_probe_training=bool(cfg_get(cfg, "model.soft_probe_training", False)),
+        soft_probe_temp=float(cfg_get(cfg, "model.soft_probe_temp", 1.0)),
     ).to(device)
 
 
@@ -88,14 +101,7 @@ def main() -> None:
     set_seed(seed)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    env = HiddenMechanismSequenceEnv(
-        vocab_size=int(cfg_get(cfg, "env.vocab_size", 16)),
-        seq_len=int(cfg_get(cfg, "env.seq_len", 12)),
-        num_probe_steps=int(cfg_get(cfg, "env.num_probe_steps", 4)),
-        num_candidate_probes=int(cfg_get(cfg, "env.num_candidate_probes", 8)),
-        num_demos=int(cfg_get(cfg, "env.num_demos", 3)),
-        seed=seed + 1,
-    )
+    env = build_env_from_cfg(cfg, section="env", seed=seed, seed_offset=1)
     dataset = SyntheticEpisodeDataset(
         env=env,
         batch_size=int(cfg_get(cfg, "train.batch_size", 32)),
@@ -104,7 +110,7 @@ def main() -> None:
     loader = torch.utils.data.DataLoader(dataset, batch_size=None)
 
     model = build_model(cfg, device)
-    state = torch.load(args.ckpt, map_location=device)
+    state = torch.load(args.ckpt, map_location=device, weights_only=False)
     model.load_state_dict(state["model"])
     model.eval()
 

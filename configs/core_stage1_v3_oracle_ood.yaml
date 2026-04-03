@@ -1,0 +1,74 @@
+seed: 0
+
+env:
+  vocab_size: 16
+  seq_len: 8
+  num_probe_steps: 3
+  num_candidate_probes: 6
+  num_demos: 1
+  mechanisms: [0, 2]
+  # Oracle setting: train directly on the regime that is OOD in core_stage1_v3.
+  param_ranges:
+    - [8, 16]
+    - [8, 16]
+    - [8, 16]
+
+model:
+  d_model: 64
+  nhead: 4
+  num_layers: 2
+  num_approaches: 4
+  num_rules: 8
+  archive_size: 16
+
+train:
+  batch_size: 32
+  lr: 2e-4
+  weight_decay: 1e-4
+  grad_clip: 1.0
+  steps_per_epoch: 120
+  epochs: 16
+  loss_weights:
+    task: 1.0
+    probe: 0.2
+  entropy_target_mode: track
+  approach_entropy_weight: 0.01
+  rule_entropy_weight: 0.005
+  approach_entropy_target_start: 1.25
+  approach_entropy_target_end: 0.80
+  rule_entropy_target_start: 1.90
+  rule_entropy_target_end: 1.20
+  entropy_target_anneal_steps: 1400
+  rule_score_spread_weight: 0.004
+  rule_consistency_weight: 0.001
+  probe_ig_weight: 0.001
+  aligned_warmup_steps: 240
+  aligned_ramp_steps: 240
+  aux_loss_ema_decay: 0.98
+  aux_loss_ema_eps: 1e-6
+  monitor:
+    log_every_steps: 40
+    metric: eval_seq_acc_lcb
+    metric_ema_beta: 0.6
+    mode: max
+    min_delta: 0.001
+    patience: 6
+    warmup_epochs: 4
+    enable_early_stop: true
+    eval_batches: 8
+    eval_section: eval.id
+    eval_seed_offset: 777
+
+eval:
+  seed_offset: 123
+  id:
+    vocab_size: 16
+    seq_len: 8
+    num_probe_steps: 3
+    num_candidate_probes: 6
+    num_demos: 1
+    mechanisms: [0, 2]
+    param_ranges:
+      - [8, 16]
+      - [8, 16]
+      - [8, 16]

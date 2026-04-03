@@ -35,7 +35,12 @@ class NoRulesSolver(HypothesisSolver):
         )
 
     def forward(self, episode: EpisodeBatch, probe_executor):
-        context_tokens, context_summary = self.encoder(episode.initial_tokens, episode.initial_mask)
+        token_types = self.build_demo_token_types(episode)
+        context_tokens, context_summary = self.encoder(
+            episode.initial_tokens,
+            episode.initial_mask,
+            token_type_ids=token_types,
+        )
         belief = self.initialize_beliefs(context_tokens, context_summary)
         logs = []
 
@@ -91,5 +96,32 @@ class NoRulesSolver(HypothesisSolver):
             belief.approach_scores,
             belief.rule_slots,
             belief.rule_scores,
+            context_tokens=context_tokens,
         )
+        bsz, total = episode.initial_tokens.shape
+        q_len = episode.final_query.size(1)
+        demo_block = 2 * q_len
+        if demo_block > 0 and total % demo_block == 0:
+            num_demos = total // demo_block
+            demos = episode.initial_tokens.view(bsz, num_demos, demo_block)
+            demo_query = demos[:, :, :q_len].reshape(bsz * num_demos, q_len)
+            demo_target = demos[:, :, q_len:].reshape(bsz * num_demos, q_len)
+
+            demo_ctx = context_summary.repeat_interleave(num_demos, dim=0)
+            demo_ctx_tokens = context_tokens.repeat_interleave(num_demos, dim=0)
+            demo_approach_slots = belief.approach_slots.repeat_interleave(num_demos, dim=0)
+            demo_approach_scores = belief.approach_scores.repeat_interleave(num_demos, dim=0)
+            demo_rule_slots = belief.rule_slots.repeat_interleave(num_demos, dim=0)
+            demo_rule_scores = belief.rule_scores.repeat_interleave(num_demos, dim=0)
+            demo_logits = self.solver_head(
+                demo_query,
+                demo_ctx,
+                demo_approach_slots,
+                demo_approach_scores,
+                demo_rule_slots,
+                demo_rule_scores,
+                context_tokens=demo_ctx_tokens,
+            )
+            belief.demo_logits = demo_logits
+            belief.demo_targets = demo_target
         return logits, belief, logs

@@ -49,6 +49,8 @@ def build_model(cfg: dict, device: str) -> HypothesisSolver:
             nhead=int(cfg_get(cfg, "model.nhead", 4)),
             num_layers=int(cfg_get(cfg, "model.num_layers", 2)),
             max_len=max(seq_len * 8, int(cfg_get(cfg, "model.max_len", seq_len * 8))),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
         approach_proposer=ApproachProposer(
             d_model=d_model,
@@ -63,7 +65,17 @@ def build_model(cfg: dict, device: str) -> HypothesisSolver:
             d_model=d_model,
             archive_size=int(cfg_get(cfg, "model.archive_size", 16)),
         ),
-        solver_head=SolverHead(vocab_size=vocab_size, d_model=d_model),
+        solver_head=SolverHead(
+            vocab_size=vocab_size,
+            d_model=d_model,
+            use_local_adapter=bool(cfg_get(cfg, "model.use_local_adapter", False)),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
+            use_modulo_shift_adapter=bool(cfg_get(cfg, "model.use_modulo_shift_adapter", False)),
+            use_demo_shift_prior=bool(cfg_get(cfg, "model.use_demo_shift_prior", False)),
+        ),
+        soft_probe_training=bool(cfg_get(cfg, "model.soft_probe_training", False)),
+        soft_probe_temp=float(cfg_get(cfg, "model.soft_probe_temp", 1.0)),
     ).to(device)
 
 

@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ood_solver.envs.hidden_mechanism_seq import HiddenMechanismSequenceEnv
+from ood_solver.envs.config import build_env_from_cfg
 from ood_solver.models.encoder import SimpleSequenceEncoder
 from ood_solver.models.approach import ApproachProposer
 from ood_solver.models.rules import RuleProposer
@@ -69,6 +70,8 @@ def build_structured_model(cfg: dict, device: str):
             nhead=int(cfg_get(cfg, "model.nhead", 4)),
             num_layers=int(cfg_get(cfg, "model.num_layers", 2)),
             max_len=int(cfg_get(cfg, "env.seq_len", 12)) * 8,
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
         approach_proposer=ApproachProposer(
             d_model=d_model,
@@ -86,7 +89,14 @@ def build_structured_model(cfg: dict, device: str):
         solver_head=SolverHead(
             d_model=d_model,
             vocab_size=vocab_size,
+            use_local_adapter=bool(cfg_get(cfg, "model.use_local_adapter", False)),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
+            use_modulo_shift_adapter=bool(cfg_get(cfg, "model.use_modulo_shift_adapter", False)),
+            use_demo_shift_prior=bool(cfg_get(cfg, "model.use_demo_shift_prior", False)),
         ),
+        soft_probe_training=bool(cfg_get(cfg, "model.soft_probe_training", False)),
+        soft_probe_temp=float(cfg_get(cfg, "model.soft_probe_temp", 1.0)),
     ).to(device)
     return model
 
@@ -101,6 +111,8 @@ def build_random_probe_model(cfg: dict, device: str):
             nhead=int(cfg_get(cfg, "model.nhead", 4)),
             num_layers=int(cfg_get(cfg, "model.num_layers", 2)),
             max_len=int(cfg_get(cfg, "env.seq_len", 12)) * 8,
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
         approach_proposer=ApproachProposer(
             d_model=d_model,
@@ -118,6 +130,11 @@ def build_random_probe_model(cfg: dict, device: str):
         solver_head=SolverHead(
             d_model=d_model,
             vocab_size=vocab_size,
+            use_local_adapter=bool(cfg_get(cfg, "model.use_local_adapter", False)),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
+            use_modulo_shift_adapter=bool(cfg_get(cfg, "model.use_modulo_shift_adapter", False)),
+            use_demo_shift_prior=bool(cfg_get(cfg, "model.use_demo_shift_prior", False)),
         ),
     ).to(device)
     return model
@@ -133,6 +150,8 @@ def build_no_rules_model(cfg: dict, device: str):
             nhead=int(cfg_get(cfg, "model.nhead", 4)),
             num_layers=int(cfg_get(cfg, "model.num_layers", 2)),
             max_len=int(cfg_get(cfg, "env.seq_len", 12)) * 8,
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
         approach_proposer=ApproachProposer(
             d_model=d_model,
@@ -150,6 +169,11 @@ def build_no_rules_model(cfg: dict, device: str):
         solver_head=SolverHead(
             d_model=d_model,
             vocab_size=vocab_size,
+            use_local_adapter=bool(cfg_get(cfg, "model.use_local_adapter", False)),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
+            use_modulo_shift_adapter=bool(cfg_get(cfg, "model.use_modulo_shift_adapter", False)),
+            use_demo_shift_prior=bool(cfg_get(cfg, "model.use_demo_shift_prior", False)),
         ),
     ).to(device)
     return model
@@ -175,6 +199,8 @@ def run_eval(model, env, episodes, device: str, structured: bool) -> dict:
     by_mech = defaultdict(lambda: defaultdict(float))
     total_batches = 0
     probe_steps = 0
+    batch_seq_acc = []
+    batch_loss = []
 
     def probe_executor(batch, step, chosen_idx):
         return env.execute_probe_batch(batch, step, chosen_idx, device=device)
@@ -232,6 +258,8 @@ def run_eval(model, env, episodes, device: str, structured: bool) -> dict:
 
         overall["loss"] += loss
         overall["seq_acc"] += seq_acc_per_item.mean().item()
+        batch_loss.append(float(loss))
+        batch_seq_acc.append(float(seq_acc_per_item.mean().item()))
         if not np.isnan(approach_entropy):
             overall["approach_entropy"] += approach_entropy
         if not np.isnan(rule_entropy):
@@ -277,6 +305,10 @@ def run_eval(model, env, episodes, device: str, structured: bool) -> dict:
             "step_rule_score_spread": overall["step_rule_score_spread"] / max(probe_steps, 1) if structured else None,
             "step_probe_top1_margin": overall["step_probe_top1_margin"] / max(probe_steps, 1) if structured else None,
         },
+        "batch_overall": {
+            "seq_acc": batch_seq_acc,
+            "loss": batch_loss,
+        },
         "by_mechanism": {},
     }
 
@@ -295,7 +327,7 @@ def sample_eval_episodes(env, batch_size: int, num_batches: int):
 
 
 def load_checkpoint(model, path: str):
-    ckpt = torch.load(path, map_location="cpu")
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
     model.load_state_dict(ckpt["model"])
     return ckpt
 
@@ -315,12 +347,11 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     set_seed(int(cfg_get(cfg, "seed", 0)))
 
-    env = HiddenMechanismSequenceEnv(
-        vocab_size=int(cfg_get(cfg, "env.vocab_size", 16)),
-        seq_len=int(cfg_get(cfg, "env.seq_len", 12)),
-        num_probe_steps=int(cfg_get(cfg, "env.num_probe_steps", 4)),
-        num_candidate_probes=int(cfg_get(cfg, "env.num_candidate_probes", 8)),
-        seed=int(cfg_get(cfg, "seed", 0) + 123),
+    env = build_env_from_cfg(
+        cfg,
+        section="eval.id" if cfg_get(cfg, "eval.id", None) is not None else "env",
+        seed=int(cfg_get(cfg, "seed", 0)),
+        seed_offset=int(cfg_get(cfg, "eval.seed_offset", 123)),
     )
 
     episodes = sample_eval_episodes(

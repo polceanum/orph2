@@ -1,0 +1,71 @@
+seed: 0
+
+env:
+  vocab_size: 16
+  seq_len: 8
+  num_probe_steps: 3
+  num_candidate_probes: 6
+  num_demos: 1
+  # Easier mechanism subset first: LOCAL + SWITCH.
+  mechanisms: [0, 2]
+  # Restrict train parameter regime.
+  param_ranges:
+    - [0, 8]
+    - [0, 8]
+    - [0, 8]
+
+model:
+  d_model: 64
+  nhead: 4
+  num_layers: 2
+  num_approaches: 4
+  num_rules: 8
+  archive_size: 16
+
+train:
+  batch_size: 32
+  lr: 2e-4
+  weight_decay: 1e-4
+  steps_per_epoch: 120
+  epochs: 10
+  loss_weights:
+    task: 1.0
+    probe: 0.2
+  # Keep anti-collapse regularization light.
+  approach_entropy_weight: 0.004
+  rule_entropy_weight: 0.002
+  rule_score_spread_weight: 0.004
+  # Keep aligned losses small and phased in.
+  rule_consistency_weight: 0.001
+  probe_ig_weight: 0.001
+  aligned_warmup_steps: 240
+  aligned_ramp_steps: 240
+  aux_loss_ema_decay: 0.98
+  aux_loss_ema_eps: 1e-6
+
+eval:
+  seed_offset: 123
+  id:
+    vocab_size: 16
+    seq_len: 8
+    num_probe_steps: 3
+    num_candidate_probes: 6
+    num_demos: 1
+    mechanisms: [0, 2]
+    param_ranges:
+      - [0, 8]
+      - [0, 8]
+      - [0, 8]
+  # OOD split: same mechanisms, unseen parameter regime.
+  ood:
+    seed_offset: 999
+    vocab_size: 16
+    seq_len: 8
+    num_probe_steps: 3
+    num_candidate_probes: 6
+    num_demos: 1
+    mechanisms: [0, 2]
+    param_ranges:
+      - [8, 16]
+      - [8, 16]
+      - [8, 16]

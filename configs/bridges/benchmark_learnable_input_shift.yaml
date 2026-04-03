@@ -1,0 +1,5 @@
+scenarios:
+  - name: bridge_07_local_input_shift_taskonly
+    description: LOCAL mechanism with same param space but shifted input token distribution at test time.
+    config: configs/bridges/bridge_07_local_input_shift_taskonly.yaml
+    oracle_config: configs/bridges/bridge_07_local_input_shift_oracle_taskonly.yaml

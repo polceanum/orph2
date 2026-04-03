@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ood_solver.envs.hidden_mechanism_seq import HiddenMechanismSequenceEnv
+from ood_solver.envs.config import build_env_from_cfg
 from ood_solver.models.encoder import SimpleSequenceEncoder
 from ood_solver.models.approach import ApproachProposer
 from ood_solver.models.rules import RuleProposer
@@ -76,6 +77,8 @@ def build_model(cfg: dict, device: str) -> HypothesisSolver:
             nhead=nhead,
             num_layers=num_layers,
             max_len=seq_len * 8,
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
         approach_proposer=ApproachProposer(
             d_model=d_model,
@@ -93,7 +96,14 @@ def build_model(cfg: dict, device: str) -> HypothesisSolver:
         solver_head=SolverHead(
             d_model=d_model,
             vocab_size=vocab_size,
+            use_local_adapter=bool(cfg_get(cfg, "model.use_local_adapter", False)),
+            use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
+            value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
+            use_modulo_shift_adapter=bool(cfg_get(cfg, "model.use_modulo_shift_adapter", False)),
+            use_demo_shift_prior=bool(cfg_get(cfg, "model.use_demo_shift_prior", False)),
         ),
+        soft_probe_training=bool(cfg_get(cfg, "model.soft_probe_training", False)),
+        soft_probe_temp=float(cfg_get(cfg, "model.soft_probe_temp", 1.0)),
     ).to(device)
     return model
 
@@ -148,13 +158,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     set_seed(int(cfg_get(cfg, "seed", 0)))
 
-    env = HiddenMechanismSequenceEnv(
-        vocab_size=int(cfg_get(cfg, "env.vocab_size", 16)),
-        seq_len=int(cfg_get(cfg, "env.seq_len", 12)),
-        num_probe_steps=int(cfg_get(cfg, "env.num_probe_steps", 4)),
-        num_candidate_probes=int(cfg_get(cfg, "env.num_candidate_probes", 8)),
-        seed=int(cfg_get(cfg, "seed", 0)),
-    )
+    env = build_env_from_cfg(cfg, section="env", seed=int(cfg_get(cfg, "seed", 0)))
 
     model = build_model(cfg, device)
     optimizer = torch.optim.AdamW(
@@ -167,6 +171,24 @@ def main():
         optimizer=optimizer,
         device=device,
         loss_weights=cfg_get(cfg, "train.loss_weights", {"task": 1.0, "probe": 0.2}),
+        rule_consistency_weight=float(cfg_get(cfg, "train.rule_consistency_weight", 0.0)),
+        probe_ig_weight=float(cfg_get(cfg, "train.probe_ig_weight", 0.0)),
+        demo_recon_weight=float(cfg_get(cfg, "train.demo_recon_weight", 0.0)),
+        approach_diversity_weight=float(cfg_get(cfg, "train.approach_diversity_weight", 0.0)),
+        rule_diversity_weight=float(cfg_get(cfg, "train.rule_diversity_weight", 0.0)),
+        demo_recon_weight_start=cfg_get(cfg, "train.demo_recon_weight_start", None),
+        demo_recon_weight_end=cfg_get(cfg, "train.demo_recon_weight_end", None),
+        demo_recon_anneal_steps=int(cfg_get(cfg, "train.demo_recon_anneal_steps", 1)),
+        aligned_warmup_steps=int(cfg_get(cfg, "train.aligned_warmup_steps", 0)),
+        aligned_ramp_steps=int(cfg_get(cfg, "train.aligned_ramp_steps", 1)),
+        aux_loss_ema_decay=float(cfg_get(cfg, "train.aux_loss_ema_decay", 0.98)),
+        aux_loss_ema_eps=float(cfg_get(cfg, "train.aux_loss_ema_eps", 1e-6)),
+        approach_entropy_target_start=cfg_get(cfg, "train.approach_entropy_target_start", None),
+        approach_entropy_target_end=cfg_get(cfg, "train.approach_entropy_target_end", None),
+        rule_entropy_target_start=cfg_get(cfg, "train.rule_entropy_target_start", None),
+        rule_entropy_target_end=cfg_get(cfg, "train.rule_entropy_target_end", None),
+        entropy_target_anneal_steps=int(cfg_get(cfg, "train.entropy_target_anneal_steps", 1)),
+        entropy_target_mode=str(cfg_get(cfg, "train.entropy_target_mode", "floor")),
     )
 
     fixed_episodes = make_fixed_episodes(
