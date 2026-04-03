@@ -179,6 +179,7 @@ def train_step_structured(
     ce_weight: float,
     pg_weight: float,
     entropy_weight: float,
+    pg_clip_eps: float,
     value_loss_weight: float,
     use_critic: bool,
     normalize_advantage: bool,
@@ -220,7 +221,15 @@ def train_step_structured(
     if logs:
         logprob_sum = torch.stack([x["chosen_logprob"] for x in logs], dim=0).sum(dim=0)
         entropy = torch.stack([x["probe_entropy"] for x in logs], dim=0).mean()
-        policy_loss = -(logprob_sum * advantage).mean()
+        if pg_clip_eps > 0.0:
+            old_logprob = logprob_sum.detach()
+            ratio = torch.exp(logprob_sum - old_logprob)
+            clipped_ratio = torch.clamp(ratio, 1.0 - pg_clip_eps, 1.0 + pg_clip_eps)
+            surr1 = ratio * advantage
+            surr2 = clipped_ratio * advantage
+            policy_loss = -torch.min(surr1, surr2).mean()
+        else:
+            policy_loss = -(logprob_sum * advantage).mean()
     else:
         entropy = torch.tensor(0.0, device=device)
         policy_loss = torch.tensor(0.0, device=device)
@@ -252,6 +261,7 @@ def train_step_recurrent(
     ce_weight: float,
     pg_weight: float,
     entropy_weight: float,
+    pg_clip_eps: float,
     value_loss_weight: float,
     use_critic: bool,
     normalize_advantage: bool,
@@ -292,7 +302,15 @@ def train_step_recurrent(
     if logprob_terms:
         logprob_sum = torch.stack(logprob_terms, dim=0).sum(dim=0)
         entropy = torch.stack(entropy_terms, dim=0).mean()
-        policy_loss = -(logprob_sum * advantage).mean()
+        if pg_clip_eps > 0.0:
+            old_logprob = logprob_sum.detach()
+            ratio = torch.exp(logprob_sum - old_logprob)
+            clipped_ratio = torch.clamp(ratio, 1.0 - pg_clip_eps, 1.0 + pg_clip_eps)
+            surr1 = ratio * advantage
+            surr2 = clipped_ratio * advantage
+            policy_loss = -torch.min(surr1, surr2).mean()
+        else:
+            policy_loss = -(logprob_sum * advantage).mean()
     else:
         entropy = torch.tensor(0.0, device=device)
         policy_loss = torch.tensor(0.0, device=device)
@@ -362,6 +380,8 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
     ce_weight = float(cfg_get(cfg, "rl.ce_weight", 1.0))
     pg_weight = float(cfg_get(cfg, "rl.pg_weight", 1.0))
     entropy_weight = float(cfg_get(cfg, "rl.entropy_weight", 0.01))
+    entropy_final_weight = float(cfg_get(cfg, "rl.entropy_final_weight", entropy_weight))
+    pg_clip_eps = float(cfg_get(cfg, "rl.pg_clip_eps", 0.0))
     normalize_advantage = bool(cfg_get(cfg, "rl.normalize_advantage", False))
     baseline_momentum = float(cfg_get(cfg, "rl.reward_baseline_momentum", 0.9))
 
@@ -374,6 +394,11 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
     bad_epochs = 0
 
     for epoch in range(epochs):
+        if epochs <= 1:
+            entropy_weight_epoch = entropy_final_weight
+        else:
+            t = float(epoch) / float(epochs - 1)
+            entropy_weight_epoch = (1.0 - t) * entropy_weight + t * entropy_final_weight
         sums_s = defaultdict(float)
         sums_r = defaultdict(float)
         for step in range(steps_per_epoch):
@@ -387,7 +412,8 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                 device=device,
                 ce_weight=ce_weight,
                 pg_weight=pg_weight,
-                entropy_weight=entropy_weight,
+                entropy_weight=entropy_weight_epoch,
+                pg_clip_eps=pg_clip_eps,
                 value_loss_weight=value_loss_weight,
                 use_critic=use_critic,
                 normalize_advantage=normalize_advantage,
@@ -403,7 +429,8 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                 device=device,
                 ce_weight=ce_weight,
                 pg_weight=pg_weight,
-                entropy_weight=entropy_weight,
+                entropy_weight=entropy_weight_epoch,
+                pg_clip_eps=pg_clip_eps,
                 value_loss_weight=value_loss_weight,
                 use_critic=use_critic,
                 normalize_advantage=normalize_advantage,
@@ -432,6 +459,7 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                         "step": step + 1,
                         "steps_per_epoch": steps_per_epoch,
                         "phase": "train_step",
+                        "entropy_weight": float(entropy_weight_epoch),
                         "structured": {
                             k: float(sums_s[k] / n)
                             for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
@@ -476,6 +504,7 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                 "seed": seed,
                 "epoch": epoch,
                 "phase": "epoch_end",
+                "entropy_weight": float(entropy_weight_epoch),
                 "train": epoch_train,
                 "monitor": {
                     "structured_iid_seq_acc": monitor_struct_iid,

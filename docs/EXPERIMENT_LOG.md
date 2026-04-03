@@ -358,3 +358,148 @@ Result:
 Decision:
 - Reject rule-critic in current form.
 - Discard code path to keep framework clean.
+
+## Iteration 1N
+
+Question:
+- Does PPO-style clipped policy gradient (`pg_clip_eps=0.2`) improve actor-critic stability/OOD?
+
+Runs:
+- Actor-critic quick: `artifacts/rl/iter12b_actorcritic_quick_s012.json`
+- Actor-critic + clip quick: `artifacts/rl/iter15_actorcritic_pgclip02_quick_s012.json`
+
+Result:
+- Actor-critic quick:
+  - structured OOD: `0.2011`
+  - OOD delta: `+0.0857`
+- +clip quick:
+  - structured OOD: `0.1969`
+  - OOD delta: `+0.0729`
+
+Decision:
+- Reject clipped PG in this setup.
+
+## Iteration 1O
+
+Question:
+- Does entropy annealing (high to low entropy weight) improve actor-critic OOD?
+
+Runs:
+- Actor-critic quick: `artifacts/rl/iter12b_actorcritic_quick_s012.json`
+- Actor-critic + entropy anneal quick: `artifacts/rl/iter16_actorcritic_entropyanneal_quick_s012.json`
+
+Result:
+- Actor-critic quick:
+  - structured OOD: `0.2011`
+  - OOD delta: `+0.0857`
+- +entropy anneal quick:
+  - structured OOD: `0.1956`
+  - OOD delta: `+0.0767`
+
+Decision:
+- Reject entropy annealing in this form.
+
+## Iteration 1P
+
+Question:
+- Does reducing critic loss weight (`value_loss_weight: 0.5 -> 0.2`) improve actor-critic OOD?
+
+Runs:
+- Actor-critic quick (`vloss=0.5`): `artifacts/rl/iter12b_actorcritic_quick_s012.json`
+- Actor-critic quick (`vloss=0.2`): `artifacts/rl/iter17_actorcritic_vloss02_quick_s012.json`
+
+Result:
+- `vloss=0.5`:
+  - structured OOD: `0.2011`
+  - OOD delta: `+0.0857`
+- `vloss=0.2`:
+  - structured OOD: `0.2029`
+  - OOD delta: `+0.0881`
+
+Decision:
+- Keep `value_loss_weight=0.2` as current best quick setting.
+
+## Iteration 1Q
+
+Question:
+- Does combining `vloss=0.2` with `experts=4` help?
+
+Runs:
+- `vloss=0.2` quick: `artifacts/rl/iter17_actorcritic_vloss02_quick_s012.json`
+- `vloss=0.2` + experts4 quick: `artifacts/rl/iter18_actorcritic_vloss02_experts4_quick_s012.json`
+
+Result:
+- `vloss=0.2` quick:
+  - structured OOD: `0.2029`
+  - OOD delta: `+0.0881`
+- +experts4:
+  - structured OOD: `0.1775`
+  - OOD delta: `+0.0547`
+
+Decision:
+- Reject experts4 combination.
+
+## Iteration 1R
+
+Question:
+- Does `vloss=0.2` improve full-budget results?
+
+Runs:
+- Baseline full: `artifacts/rl/bridge10_rl_full_s012.json`
+- Actor-critic full (`vloss=0.5`): `artifacts/rl/iter13_actorcritic_full_s012.json`
+- Actor-critic full (`vloss=0.2`): `artifacts/rl/iter19_actorcritic_vloss02_full_s012.json`
+
+Result:
+- Baseline full:
+  - structured OOD: `0.4672`
+  - OOD delta: `+0.2814`
+- Actor-critic `vloss=0.5`:
+  - structured OOD: `0.4596`
+  - OOD delta: `+0.2988`
+- Actor-critic `vloss=0.2`:
+  - structured OOD: `0.4767` (best absolute among these)
+  - OOD delta: `+0.2776`
+
+Decision:
+- Keep `vloss=0.2` as current best absolute structured-OOD full setting.
+
+## Iteration 1S
+
+Question:
+- Does disabling advantage normalization help `vloss=0.2`?
+
+Runs:
+- Quick (`nonorm`): `artifacts/rl/iter20_actorcritic_vloss02_nonorm_quick_s012.json`
+- Full (`nonorm`): `artifacts/rl/iter21_actorcritic_vloss02_nonorm_full_s012.json`
+- Comparator (`norm`, full): `artifacts/rl/iter19_actorcritic_vloss02_full_s012.json`
+
+Result:
+- Quick: slight OOD delta gain (`+0.0898`).
+- Full:
+  - `norm` structured OOD: `0.4767`
+  - `nonorm` structured OOD: `0.4619`
+  - `norm` OOD delta: `+0.2776`
+  - `nonorm` OOD delta: `+0.2734`
+
+Decision:
+- Keep normalization enabled for full-budget runs.
+
+## Iteration 1T
+
+Question:
+- Does more training budget (with early stop) improve the current best `vloss=0.2` setting?
+
+Runs:
+- Full (`12x120`): `artifacts/rl/iter19_actorcritic_vloss02_full_s012.json`
+- Long (`16x120`, patience=3): `artifacts/rl/iter22_actorcritic_vloss02_long_s012.json`
+
+Result:
+- `iter19`:
+  - structured OOD: `0.4767`
+  - OOD delta: `+0.2776`
+- `iter22`:
+  - structured OOD: `0.5208`
+  - OOD delta: `+0.3083`
+
+Decision:
+- Keep long-budget `vloss=0.2` as new best overall.
