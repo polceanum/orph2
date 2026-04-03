@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 
@@ -69,6 +70,16 @@ def append_jsonl(path: Path | None, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(payload) + "\n")
+
+
+def clip_optimizer_grads(optimizer: torch.optim.Optimizer, max_norm: float) -> None:
+    params = []
+    for group in optimizer.param_groups:
+        for p in group.get("params", []):
+            if p is not None and p.grad is not None:
+                params.append(p)
+    if params:
+        torch.nn.utils.clip_grad_norm_(params, max_norm)
 
 
 def build_structured_model(cfg: dict, device: str) -> HypothesisSolver:
@@ -161,12 +172,16 @@ def evaluate_model(model, env, device: str, num_batches: int, batch_size: int, s
 def train_step_structured(
     model: HypothesisSolver,
     optimizer: torch.optim.Optimizer,
+    value_head: nn.Module | None,
     batch,
     env,
     device: str,
     ce_weight: float,
     pg_weight: float,
     entropy_weight: float,
+    value_loss_weight: float,
+    use_critic: bool,
+    normalize_advantage: bool,
     baseline: float,
     baseline_momentum: float,
 ):
@@ -177,15 +192,30 @@ def train_step_structured(
     def probe_executor(ep, step, chosen_idx):
         return env.execute_probe_batch(ep, step, chosen_idx, device=device)
 
-    logits, _, logs = model(batch, probe_executor)
+    logits, belief, logs = model(batch, probe_executor)
     b, l, v = logits.shape
     ce = F.cross_entropy(logits.reshape(b * l, v), batch.final_target.reshape(b * l))
 
     pred = logits.argmax(dim=-1)
     token_acc = (pred == batch.final_target).float().mean(dim=-1)
     reward = token_acc.detach()
-    baseline = baseline_momentum * baseline + (1.0 - baseline_momentum) * float(reward.mean().item())
-    advantage = reward - baseline
+    value_loss = torch.tensor(0.0, device=device)
+    value_pred_mean = torch.tensor(0.0, device=device)
+    if use_critic and value_head is not None:
+        app_w = torch.softmax(belief.approach_scores, dim=-1).unsqueeze(-1)
+        rule_w = torch.softmax(belief.rule_scores, dim=-1).unsqueeze(-1)
+        pooled_app = (belief.approach_slots * app_w).sum(dim=1)
+        pooled_rule = (belief.rule_slots * rule_w).sum(dim=1)
+        critic_feat = torch.cat([pooled_app, pooled_rule, belief.surprise, belief.stagnation], dim=-1)
+        value_pred = value_head(critic_feat).squeeze(-1)
+        value_loss = F.mse_loss(value_pred, reward)
+        value_pred_mean = value_pred.mean()
+        advantage = reward - value_pred.detach()
+    else:
+        baseline = baseline_momentum * baseline + (1.0 - baseline_momentum) * float(reward.mean().item())
+        advantage = reward - baseline
+    if normalize_advantage:
+        advantage = (advantage - advantage.mean()) / (advantage.std(unbiased=False) + 1e-6)
 
     if logs:
         logprob_sum = torch.stack([x["chosen_logprob"] for x in logs], dim=0).sum(dim=0)
@@ -196,8 +226,10 @@ def train_step_structured(
         policy_loss = torch.tensor(0.0, device=device)
 
     loss = ce_weight * ce + pg_weight * policy_loss - entropy_weight * entropy
+    if use_critic and value_head is not None:
+        loss = loss + value_loss_weight * value_loss
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    clip_optimizer_grads(optimizer, 1.0)
     optimizer.step()
     return {
         "loss": float(loss.item()),
@@ -205,18 +237,24 @@ def train_step_structured(
         "pg": float(policy_loss.item()),
         "reward": float(reward.mean().item()),
         "probe_entropy": float(entropy.item()),
+        "value_loss": float(value_loss.item()),
+        "value_pred_mean": float(value_pred_mean.item()),
     }, baseline
 
 
 def train_step_recurrent(
     model: RecurrentBaseline,
     optimizer: torch.optim.Optimizer,
+    value_head: nn.Module | None,
     batch,
     env,
     device: str,
     ce_weight: float,
     pg_weight: float,
     entropy_weight: float,
+    value_loss_weight: float,
+    use_critic: bool,
+    normalize_advantage: bool,
     baseline: float,
     baseline_momentum: float,
 ):
@@ -234,8 +272,19 @@ def train_step_recurrent(
     pred = logits.argmax(dim=-1)
     token_acc = (pred == batch.final_target).float().mean(dim=-1)
     reward = token_acc.detach()
-    baseline = baseline_momentum * baseline + (1.0 - baseline_momentum) * float(reward.mean().item())
-    advantage = reward - baseline
+    value_loss = torch.tensor(0.0, device=device)
+    value_pred_mean = torch.tensor(0.0, device=device)
+    if use_critic and value_head is not None:
+        hidden = aux["hidden"]
+        value_pred = value_head(hidden).squeeze(-1)
+        value_loss = F.mse_loss(value_pred, reward)
+        value_pred_mean = value_pred.mean()
+        advantage = reward - value_pred.detach()
+    else:
+        baseline = baseline_momentum * baseline + (1.0 - baseline_momentum) * float(reward.mean().item())
+        advantage = reward - baseline
+    if normalize_advantage:
+        advantage = (advantage - advantage.mean()) / (advantage.std(unbiased=False) + 1e-6)
 
     step_logs = aux.get("step_logs", [])
     logprob_terms = [x["chosen_logprob"] for x in step_logs if x.get("chosen_logprob") is not None]
@@ -249,8 +298,10 @@ def train_step_recurrent(
         policy_loss = torch.tensor(0.0, device=device)
 
     loss = ce_weight * ce + pg_weight * policy_loss - entropy_weight * entropy
+    if use_critic and value_head is not None:
+        loss = loss + value_loss_weight * value_loss
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    clip_optimizer_grads(optimizer, 1.0)
     optimizer.step()
     return {
         "loss": float(loss.item()),
@@ -258,6 +309,8 @@ def train_step_recurrent(
         "pg": float(policy_loss.item()),
         "reward": float(reward.mean().item()),
         "probe_entropy": float(entropy.item()),
+        "value_loss": float(value_loss.item()),
+        "value_pred_mean": float(value_pred_mean.item()),
     }, baseline
 
 
@@ -279,8 +332,28 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
     recurrent = build_recurrent_model(cfg, device)
 
     lr = float(cfg_get(cfg, "rl.lr", 3e-4))
-    opt_s = torch.optim.AdamW(structured.parameters(), lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
-    opt_r = torch.optim.AdamW(recurrent.parameters(), lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
+    use_critic = bool(cfg_get(cfg, "rl.use_critic", False))
+    value_loss_weight = float(cfg_get(cfg, "rl.value_loss_weight", 0.5))
+    d_model = int(cfg_get(cfg, "model.d_model", 64))
+    value_head_s: nn.Module | None = None
+    value_head_r: nn.Module | None = None
+    params_s = list(structured.parameters())
+    params_r = list(recurrent.parameters())
+    if use_critic:
+        value_head_s = nn.Sequential(
+            nn.Linear(2 * d_model + 2, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, 1),
+        ).to(device)
+        value_head_r = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, 1),
+        ).to(device)
+        params_s += list(value_head_s.parameters())
+        params_r += list(value_head_r.parameters())
+    opt_s = torch.optim.AdamW(params_s, lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
+    opt_r = torch.optim.AdamW(params_r, lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
 
     epochs = int(cfg_get(cfg, "rl.epochs", 12))
     steps_per_epoch = int(cfg_get(cfg, "rl.steps_per_epoch", 120))
@@ -289,6 +362,7 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
     ce_weight = float(cfg_get(cfg, "rl.ce_weight", 1.0))
     pg_weight = float(cfg_get(cfg, "rl.pg_weight", 1.0))
     entropy_weight = float(cfg_get(cfg, "rl.entropy_weight", 0.01))
+    normalize_advantage = bool(cfg_get(cfg, "rl.normalize_advantage", False))
     baseline_momentum = float(cfg_get(cfg, "rl.reward_baseline_momentum", 0.9))
 
     baseline_s = 0.0
@@ -307,24 +381,32 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
             ms, baseline_s = train_step_structured(
                 model=structured,
                 optimizer=opt_s,
+                value_head=value_head_s,
                 batch=batch,
                 env=train_env,
                 device=device,
                 ce_weight=ce_weight,
                 pg_weight=pg_weight,
                 entropy_weight=entropy_weight,
+                value_loss_weight=value_loss_weight,
+                use_critic=use_critic,
+                normalize_advantage=normalize_advantage,
                 baseline=baseline_s,
                 baseline_momentum=baseline_momentum,
             )
             mr, baseline_r = train_step_recurrent(
                 model=recurrent,
                 optimizer=opt_r,
+                value_head=value_head_r,
                 batch=batch,
                 env=train_env,
                 device=device,
                 ce_weight=ce_weight,
                 pg_weight=pg_weight,
                 entropy_weight=entropy_weight,
+                value_loss_weight=value_loss_weight,
+                use_critic=use_critic,
+                normalize_advantage=normalize_advantage,
                 baseline=baseline_r,
                 baseline_momentum=baseline_momentum,
             )
@@ -338,7 +420,8 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                 msg = (
                     f"seed={seed} epoch={epoch} step={step+1}/{steps_per_epoch} "
                     f"structured(loss={sums_s['loss']/n:.3f}, ce={sums_s['ce']/n:.3f}, reward={sums_s['reward']/n:.3f}) "
-                    f"recurrent(loss={sums_r['loss']/n:.3f}, ce={sums_r['ce']/n:.3f}, reward={sums_r['reward']/n:.3f})"
+                    f"recurrent(loss={sums_r['loss']/n:.3f}, ce={sums_r['ce']/n:.3f}, reward={sums_r['reward']/n:.3f}) "
+                    f"value(s={sums_s['value_loss']/n:.3f}, r={sums_r['value_loss']/n:.3f})"
                 )
                 print(msg, flush=True)
                 append_jsonl(
@@ -349,15 +432,27 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                         "step": step + 1,
                         "steps_per_epoch": steps_per_epoch,
                         "phase": "train_step",
-                        "structured": {k: float(sums_s[k] / n) for k in ("loss", "ce", "pg", "reward", "probe_entropy")},
-                        "recurrent": {k: float(sums_r[k] / n) for k in ("loss", "ce", "pg", "reward", "probe_entropy")},
+                        "structured": {
+                            k: float(sums_s[k] / n)
+                            for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+                        },
+                        "recurrent": {
+                            k: float(sums_r[k] / n)
+                            for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+                        },
                     },
                 )
 
         n_epoch = float(max(steps_per_epoch, 1))
         epoch_train = {
-            "structured": {k: float(sums_s[k] / n_epoch) for k in ("loss", "ce", "pg", "reward", "probe_entropy")},
-            "recurrent": {k: float(sums_r[k] / n_epoch) for k in ("loss", "ce", "pg", "reward", "probe_entropy")},
+            "structured": {
+                k: float(sums_s[k] / n_epoch)
+                for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+            },
+            "recurrent": {
+                k: float(sums_r[k] / n_epoch)
+                for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+            },
         }
 
         structured_iid_monitor = evaluate_model(

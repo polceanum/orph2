@@ -69,3 +69,292 @@ Result:
 Decision:
 - Reject `temp=1.2` for now.
 - Keep `sample_probe_temp=1.0`.
+
+## Iteration 1C
+
+Question:
+- Does increasing policy-gradient weight (`rl.pg_weight`) improve OOD adaptation?
+
+Hypothesis:
+- Raising `pg_weight` from `1.0` to `1.5` may help probe-policy learning and improve OOD.
+
+Controls:
+- Same architecture, optimizer, seeds (`0,1,2`), steps, and evaluation.
+- Single changed variable: `rl.pg_weight`.
+
+Runs:
+- Baseline:
+  - config: `configs/bridges/bridge_10_mechanism_addition_rl_quick.yaml`
+  - output: `artifacts/rl/iter1_baseline_quick_s012.json`
+- Variant (`pg_weight=1.5`):
+  - config: `configs/bridges/bridge_10_mechanism_addition_rl_quick_pg15.yaml`
+  - output: `artifacts/rl/iter3_pg15_quick_s012.json`
+
+Result:
+- Baseline:
+  - structured OOD: `0.1963`
+  - recurrent OOD: `0.1183`
+  - OOD delta: `+0.0780`
+- Variant (`pg=1.5`):
+  - structured OOD: `0.1974` (slightly higher)
+  - recurrent OOD: `0.1215` (higher)
+  - OOD delta: `+0.0758` (lower)
+
+Decision:
+- Reject `pg_weight=1.5` for now.
+- Keep `pg_weight=1.0`.
+
+## Iteration 1D
+
+Question:
+- Does increasing structured rule-slot capacity (`model.num_rules`) improve OOD adaptation?
+
+Hypothesis:
+- Increasing `num_rules` from `8` to `12` might improve structured OOD by supporting richer latent rule decomposition.
+
+Controls:
+- Same architecture/training/eval/seeds except `model.num_rules`.
+
+Runs:
+- Baseline:
+  - config: `configs/bridges/bridge_10_mechanism_addition_rl_quick.yaml`
+  - output: `artifacts/rl/iter1_baseline_quick_s012.json`
+- Variant (`num_rules=12`):
+  - config: `configs/bridges/bridge_10_mechanism_addition_rl_quick_rules12.yaml`
+  - output: `artifacts/rl/iter4_rules12_quick_s012.json`
+
+Result:
+- Baseline:
+  - structured OOD: `0.1963`
+  - OOD delta: `+0.0780`
+- Variant (`rules=12`):
+  - structured OOD: `0.1691`
+  - OOD delta: `+0.0513`
+  - much higher seed variance
+
+Decision:
+- Reject `num_rules=12`.
+- Keep baseline `num_rules=8` and test smaller capacity next (`num_rules=6`).
+
+## Iteration 1E
+
+Question:
+- Does reducing rule-slot capacity (`num_rules=6`) improve OOD adaptation via regularization?
+
+Hypothesis:
+- Fewer rules may reduce overfitting and improve OOD.
+
+Controls:
+- Same setup as baseline, only `model.num_rules: 8 -> 6`.
+
+Runs:
+- Baseline: `artifacts/rl/iter1_baseline_quick_s012.json`
+- Variant: `artifacts/rl/iter5_rules6_quick_s012.json`
+
+Result:
+- Baseline OOD delta: `+0.0780`
+- `rules6` OOD delta: `+0.0744`
+- Structured OOD dropped: `0.1963 -> 0.1893`
+
+Decision:
+- Reject `num_rules=6`.
+- Keep `num_rules=8`.
+
+## Iteration 1F
+
+Question:
+- Does increasing approach-slot capacity (`num_approaches=6`) improve OOD adaptation?
+
+Hypothesis:
+- More approach slots may help retain competing hypotheses and improve OOD.
+
+Controls:
+- Same setup as baseline, only `model.num_approaches: 4 -> 6`.
+
+Runs:
+- Baseline: `artifacts/rl/iter1_baseline_quick_s012.json`
+- Variant: `artifacts/rl/iter6_approaches6_quick_s012.json`
+
+Result:
+- Baseline:
+  - structured OOD: `0.1963`
+  - OOD delta: `+0.0780`
+- `approaches6`:
+  - structured OOD: `0.1883`
+  - OOD delta: `+0.0705`
+  - higher variance than baseline
+
+Decision:
+- Reject `num_approaches=6`.
+- Keep `num_approaches=4`.
+
+## Iteration 1G
+
+Question:
+- Does increasing router expert count (`num_mechanism_experts=4`) improve OOD adaptation?
+
+Hypothesis:
+- More mechanism experts may improve structured specialization and OOD transfer.
+
+Controls:
+- Same setup as baseline, only `model.num_mechanism_experts: 3 -> 4`.
+
+Runs:
+- Baseline: `artifacts/rl/iter1_baseline_quick_s012.json`
+- Variant: `artifacts/rl/iter8_experts4_quick_s012.json`
+
+Result:
+- Baseline:
+  - structured OOD: `0.1963`
+  - OOD delta: `+0.0780`
+- `experts4`:
+  - structured OOD: `0.2058`
+  - OOD delta: `+0.0799`
+
+Decision:
+- Keep as promising candidate.
+- Next step: verify on full-budget run (not only quick setting).
+
+## Iteration 1H
+
+Question:
+- Does `experts=4` hold under full-budget training?
+
+Runs:
+- Baseline full: `artifacts/rl/bridge10_rl_full_s012.json`
+- Variant full (`experts=4`): `artifacts/rl/iter8_experts4_full_s012.json`
+
+Result:
+- Baseline full:
+  - structured OOD: `0.4672`
+  - OOD delta: `+0.2814`
+- `experts=4` full:
+  - structured OOD: `0.4761` (`+0.0089` absolute)
+  - OOD delta: `+0.2799` (`-0.0014`)
+
+Decision:
+- Keep as *borderline/promising* (absolute structured OOD improved).
+- Continue local router search with `experts=4` and sharper temperature.
+
+## Iteration 1I
+
+Question:
+- Does actor-critic training (learned value baseline) improve OOD adaptation over plain REINFORCE baseline?
+
+Field prior:
+- Actor-critic is a standard variance-reduction upgrade in policy-gradient RL and often improves sample efficiency/stability.
+
+Controls:
+- Same quick setup/seeds as baseline, with one algorithmic change:
+  - `rl.use_critic: true`
+  - `rl.value_loss_weight: 0.5`
+
+Runs:
+- Baseline quick: `artifacts/rl/iter1_baseline_quick_s012.json`
+- Actor-critic quick: `artifacts/rl/iter10_actorcritic_quick_s012.json`
+
+Result:
+- Baseline quick:
+  - structured OOD: `0.1963`
+  - recurrent OOD: `0.1183`
+  - OOD delta: `+0.0780`
+- Actor-critic quick:
+  - structured OOD: `0.1986`
+  - recurrent OOD: `0.1143`
+  - OOD delta: `+0.0843`
+
+Decision:
+- Keep as promising candidate.
+- Next step: full-budget confirmation.
+
+## Iteration 1J
+
+Question:
+- Does combining actor-critic with `experts=4` improve over baseline quick?
+
+Runs:
+- Baseline quick: `artifacts/rl/iter11b_baseline_quick_s012.json`
+- Actor-critic + experts=4 quick: `artifacts/rl/iter12_actorcritic_experts4_quick_s012.json`
+
+Result:
+- Baseline quick:
+  - structured OOD: `0.1963`
+  - OOD delta: `+0.0780`
+- Actor-critic + experts=4 quick:
+  - structured OOD: `0.1875`
+  - OOD delta: `+0.0569`
+
+Decision:
+- Reject the combination for now.
+- Keep `experts=4` and actor-critic as separate hypotheses (do not combine yet).
+
+## Iteration 1K
+
+Question:
+- Does plain actor-critic remain beneficial on the current code after stability fixes?
+
+Runs:
+- Baseline quick: `artifacts/rl/iter11b_baseline_quick_s012.json`
+- Actor-critic quick: `artifacts/rl/iter12b_actorcritic_quick_s012.json`
+
+Result:
+- Baseline quick:
+  - structured OOD: `0.1963`
+  - recurrent OOD: `0.1183`
+  - OOD delta: `+0.0780`
+- Actor-critic quick:
+  - structured OOD: `0.2011`
+  - recurrent OOD: `0.1153`
+  - OOD delta: `+0.0857`
+
+Decision:
+- Keep actor-critic as current leading candidate in quick setting.
+- Next step: confirm with full-budget actor-critic rerun.
+
+## Iteration 1L
+
+Question:
+- Does actor-critic improve at full budget on the updated/stable code path?
+
+Runs:
+- Baseline full: `artifacts/rl/bridge10_rl_full_s012.json`
+- Actor-critic full (rerun): `artifacts/rl/iter13_actorcritic_full_s012.json`
+
+Result:
+- Baseline full:
+  - structured OOD: `0.4672`
+  - recurrent OOD: `0.1858`
+  - OOD delta: `+0.2814`
+- Actor-critic full:
+  - structured OOD: `0.4596`
+  - recurrent OOD: `0.1607`
+  - OOD delta: `+0.2988`
+
+Interpretation:
+- Actor-critic improved relative OOD margin (`+0.0174` delta), mainly by reducing recurrent baseline performance.
+- Absolute structured OOD remained below baseline full (`-0.0077`).
+
+Decision:
+- Keep actor-critic as useful for stronger separation/margin analysis.
+- Do not call it an absolute structured-OOD win at full budget yet.
+
+## Iteration 1M
+
+Question:
+- Does adding a rule-critic auxiliary loss (rules as latent value estimators) improve OOD?
+
+Runs:
+- Actor-critic quick: `artifacts/rl/iter12b_actorcritic_quick_s012.json`
+- Actor-critic + rule-critic quick: `artifacts/rl/iter14_actorcritic_rulecritic_quick_s012.json`
+
+Result:
+- Actor-critic quick:
+  - structured OOD: `0.2011`
+  - OOD delta: `+0.0857`
+- Actor-critic + rule-critic quick:
+  - structured OOD: `0.1820`
+  - OOD delta: `+0.0561`
+
+Decision:
+- Reject rule-critic in current form.
+- Discard code path to keep framework clean.
