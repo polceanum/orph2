@@ -503,3 +503,46 @@ Result:
 
 Decision:
 - Keep long-budget `vloss=0.2` as new best overall.
+
+## Iteration 1U
+
+Question:
+- Can we compare against an explicit mainstream baseline (`standard_actor_critic`) in the same training/eval loop?
+
+Implementation:
+- Added optional `baselines.standard_actor_critic` path in `scripts/train_rl_compare.py`.
+- Uses a non-structured recurrent actor-critic with shared policy/value training objective and dedicated reporting fields.
+
+Quick run:
+- Config: `configs/bridges/bridge_10_mechanism_addition_rl_quick_with_standard_ac.yaml`
+- Output: `artifacts/rl/iter27_quick_with_standard_ac_s012.json`
+
+Result (quick):
+- structured OOD: `0.1950`
+- recurrent OOD: `0.1136`
+- standard actor-critic OOD: `0.1353`
+- structured - standard AC OOD delta: `+0.0597`
+
+Decision:
+- Keep standard actor-critic baseline as default reporting comparator.
+
+## Iteration 1V
+
+Question:
+- Does structured still beat standard actor-critic on a harder OOD split (unseen stochastic mechanism only)?
+
+Quick run:
+- Config: `configs/bridges/bridge_10_mechanism_stochastic_ood_quick_with_standard_ac.yaml`
+- Output: `artifacts/rl/iter29_stochasticood_quick_with_standard_ac_s012.json`
+
+Result (hard OOD, quick):
+- structured OOD: `0.3158`
+- recurrent OOD: `0.1646`
+- standard actor-critic OOD: `0.2658`
+- structured - standard AC OOD delta: `+0.0499`
+
+Interpretation:
+- Gap narrows on harder OOD, but structured still leads both baselines.
+
+Decision:
+- Proceed to full-budget hard-OOD run with standard baseline included.

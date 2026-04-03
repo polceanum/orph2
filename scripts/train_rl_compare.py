@@ -142,6 +142,22 @@ def build_recurrent_model(cfg: dict, device: str) -> RecurrentBaseline:
     return model
 
 
+def build_standard_ac_model(cfg: dict, device: str) -> RecurrentBaseline:
+    d_model = int(cfg_get(cfg, "model.d_model", 64))
+    hidden_dim = int(cfg_get(cfg, "baselines.standard_actor_critic.hidden_dim", 2 * d_model))
+    model = RecurrentBaseline(
+        vocab_size=int(cfg_get(cfg, "env.vocab_size", 12)),
+        d_model=d_model,
+        hidden_dim=hidden_dim,
+        seq_len=int(cfg_get(cfg, "env.seq_len", 6)),
+        num_probe_steps=int(cfg_get(cfg, "env.num_probe_steps", 2)),
+        use_probe_policy=True,
+        sample_probes_during_training=True,
+        probe_temperature=float(cfg_get(cfg, "baselines.standard_actor_critic.sample_probe_temp", cfg_get(cfg, "rl.sample_probe_temp", 1.0))),
+    ).to(device)
+    return model
+
+
 def aggregate(values: list[float]) -> dict:
     if not values:
         return {"mean": None, "std": None}
@@ -348,6 +364,8 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
 
     structured = build_structured_model(cfg, device)
     recurrent = build_recurrent_model(cfg, device)
+    enable_standard_ac = bool(cfg_get(cfg, "baselines.standard_actor_critic.enabled", False))
+    standard_ac = build_standard_ac_model(cfg, device) if enable_standard_ac else None
 
     lr = float(cfg_get(cfg, "rl.lr", 3e-4))
     use_critic = bool(cfg_get(cfg, "rl.use_critic", False))
@@ -355,8 +373,10 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
     d_model = int(cfg_get(cfg, "model.d_model", 64))
     value_head_s: nn.Module | None = None
     value_head_r: nn.Module | None = None
+    value_head_a: nn.Module | None = None
     params_s = list(structured.parameters())
     params_r = list(recurrent.parameters())
+    params_a = list(standard_ac.parameters()) if standard_ac is not None else []
     if use_critic:
         value_head_s = nn.Sequential(
             nn.Linear(2 * d_model + 2, d_model),
@@ -370,8 +390,24 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
         ).to(device)
         params_s += list(value_head_s.parameters())
         params_r += list(value_head_r.parameters())
+        if standard_ac is not None:
+            value_head_a = nn.Sequential(
+                nn.Linear(int(cfg_get(cfg, "baselines.standard_actor_critic.hidden_dim", 2 * d_model)), d_model),
+                nn.GELU(),
+                nn.Linear(d_model, 1),
+            ).to(device)
+            params_a += list(value_head_a.parameters())
     opt_s = torch.optim.AdamW(params_s, lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
     opt_r = torch.optim.AdamW(params_r, lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
+    opt_a = (
+        torch.optim.AdamW(
+            params_a,
+            lr=float(cfg_get(cfg, "baselines.standard_actor_critic.lr", lr)),
+            weight_decay=float(cfg_get(cfg, "baselines.standard_actor_critic.weight_decay", cfg_get(cfg, "rl.weight_decay", 1e-4))),
+        )
+        if standard_ac is not None
+        else None
+    )
 
     epochs = int(cfg_get(cfg, "rl.epochs", 12))
     steps_per_epoch = int(cfg_get(cfg, "rl.steps_per_epoch", 120))
@@ -387,6 +423,7 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
 
     baseline_s = 0.0
     baseline_r = 0.0
+    baseline_a = 0.0
     monitor_batches = int(cfg_get(cfg, "rl.monitor_eval_batches", 6))
     early_stop_patience = int(cfg_get(cfg, "rl.early_stop_patience", 0))
     early_stop_min_delta = float(cfg_get(cfg, "rl.early_stop_min_delta", 1e-3))
@@ -401,6 +438,7 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
             entropy_weight_epoch = (1.0 - t) * entropy_weight + t * entropy_final_weight
         sums_s = defaultdict(float)
         sums_r = defaultdict(float)
+        sums_a = defaultdict(float)
         for step in range(steps_per_epoch):
             batch = train_env.sample_episode(batch_size=batch_size)
             ms, baseline_s = train_step_structured(
@@ -441,6 +479,26 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                 sums_s[k] += v
             for k, v in mr.items():
                 sums_r[k] += v
+            if standard_ac is not None and opt_a is not None and value_head_a is not None:
+                ma, baseline_a = train_step_recurrent(
+                    model=standard_ac,
+                    optimizer=opt_a,
+                    value_head=value_head_a,
+                    batch=batch,
+                    env=train_env,
+                    device=device,
+                    ce_weight=ce_weight,
+                    pg_weight=float(cfg_get(cfg, "baselines.standard_actor_critic.pg_weight", pg_weight)),
+                    entropy_weight=float(cfg_get(cfg, "baselines.standard_actor_critic.entropy_weight", entropy_weight)),
+                    pg_clip_eps=float(cfg_get(cfg, "baselines.standard_actor_critic.pg_clip_eps", pg_clip_eps)),
+                    value_loss_weight=float(cfg_get(cfg, "baselines.standard_actor_critic.value_loss_weight", value_loss_weight)),
+                    use_critic=True,
+                    normalize_advantage=bool(cfg_get(cfg, "baselines.standard_actor_critic.normalize_advantage", True)),
+                    baseline=baseline_a,
+                    baseline_momentum=baseline_momentum,
+                )
+                for k, v in ma.items():
+                    sums_a[k] += v
 
             if log_every > 0 and (step + 1) % log_every == 0:
                 n = float(step + 1)
@@ -450,25 +508,36 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                     f"recurrent(loss={sums_r['loss']/n:.3f}, ce={sums_r['ce']/n:.3f}, reward={sums_r['reward']/n:.3f}) "
                     f"value(s={sums_s['value_loss']/n:.3f}, r={sums_r['value_loss']/n:.3f})"
                 )
+                if standard_ac is not None:
+                    msg += (
+                        f" std_ac(loss={sums_a['loss']/n:.3f}, ce={sums_a['ce']/n:.3f}, reward={sums_a['reward']/n:.3f}, "
+                        f"value={sums_a['value_loss']/n:.3f})"
+                    )
                 print(msg, flush=True)
+                payload = {
+                    "seed": seed,
+                    "epoch": epoch,
+                    "step": step + 1,
+                    "steps_per_epoch": steps_per_epoch,
+                    "phase": "train_step",
+                    "entropy_weight": float(entropy_weight_epoch),
+                    "structured": {
+                        k: float(sums_s[k] / n)
+                        for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+                    },
+                    "recurrent": {
+                        k: float(sums_r[k] / n)
+                        for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+                    },
+                }
+                if standard_ac is not None:
+                    payload["standard_actor_critic"] = {
+                        k: float(sums_a[k] / n)
+                        for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+                    }
                 append_jsonl(
                     log_jsonl_path,
-                    {
-                        "seed": seed,
-                        "epoch": epoch,
-                        "step": step + 1,
-                        "steps_per_epoch": steps_per_epoch,
-                        "phase": "train_step",
-                        "entropy_weight": float(entropy_weight_epoch),
-                        "structured": {
-                            k: float(sums_s[k] / n)
-                            for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
-                        },
-                        "recurrent": {
-                            k: float(sums_r[k] / n)
-                            for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
-                        },
-                    },
+                    payload,
                 )
 
         n_epoch = float(max(steps_per_epoch, 1))
@@ -482,6 +551,11 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                 for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
             },
         }
+        if standard_ac is not None:
+            epoch_train["standard_actor_critic"] = {
+                k: float(sums_a[k] / n_epoch)
+                for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
+            }
 
         structured_iid_monitor = evaluate_model(
             structured, iid_env, device, num_batches=monitor_batches, batch_size=batch_size, structured=True
@@ -530,10 +604,15 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
     structured_ood = evaluate_model(structured, ood_env, device, eval_batches, batch_size, structured=True)
     recurrent_iid = evaluate_model(recurrent, iid_env, device, eval_batches, batch_size, structured=False)
     recurrent_ood = evaluate_model(recurrent, ood_env, device, eval_batches, batch_size, structured=False)
-    return {
+    result = {
         "structured": {"iid": structured_iid, "ood": structured_ood},
         "recurrent_rl": {"iid": recurrent_iid, "ood": recurrent_ood},
     }
+    if standard_ac is not None:
+        standard_iid = evaluate_model(standard_ac, iid_env, device, eval_batches, batch_size, structured=False)
+        standard_ood = evaluate_model(standard_ac, ood_env, device, eval_batches, batch_size, structured=False)
+        result["standard_actor_critic"] = {"iid": standard_iid, "ood": standard_ood}
+    return result
 
 
 def main():
@@ -560,11 +639,16 @@ def main():
         per_seed[str(seed)] = run_seed(cfg, seed, device, log_jsonl_path=seed_log_path)
 
     rows = {"structured_iid": [], "structured_ood": [], "recurrent_iid": [], "recurrent_ood": []}
+    use_standard_ac = False
     for blob in per_seed.values():
         rows["structured_iid"].append(blob["structured"]["iid"]["seq_acc"])
         rows["structured_ood"].append(blob["structured"]["ood"]["seq_acc"])
         rows["recurrent_iid"].append(blob["recurrent_rl"]["iid"]["seq_acc"])
         rows["recurrent_ood"].append(blob["recurrent_rl"]["ood"]["seq_acc"])
+        if "standard_actor_critic" in blob:
+            use_standard_ac = True
+            rows.setdefault("standard_ac_iid", []).append(blob["standard_actor_critic"]["iid"]["seq_acc"])
+            rows.setdefault("standard_ac_ood", []).append(blob["standard_actor_critic"]["ood"]["seq_acc"])
 
     summary = {
         "config": args.config,
@@ -576,6 +660,11 @@ def main():
             "ood": aggregate([a - b for a, b in zip(rows["structured_ood"], rows["recurrent_ood"])]),
         },
     }
+    if use_standard_ac:
+        summary["delta_structured_minus_standard_actor_critic"] = {
+            "iid": aggregate([a - b for a, b in zip(rows["structured_iid"], rows["standard_ac_iid"])]),
+            "ood": aggregate([a - b for a, b in zip(rows["structured_ood"], rows["standard_ac_ood"])]),
+        }
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(summary, indent=2))
