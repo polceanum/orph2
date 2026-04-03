@@ -1,5 +1,0 @@
-scenarios:
-  - name: bridge_01_easy_local_taskonly
-    description: Learnable single-mechanism bridge with pure task loss (no auxiliary terms).
-    config: configs/bridges/bridge_01_easy_local_taskonly.yaml
-    oracle_config: configs/bridges/bridge_01_easy_local_oracle_taskonly.yaml

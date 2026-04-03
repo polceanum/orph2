@@ -1,5 +1,0 @@
-scenarios:
-  - name: bridge_01_easy_local_noprobe_taskonly
-    description: Learnable LOCAL bridge without probing to isolate demo-conditioned transfer.
-    config: configs/bridges/bridge_01_easy_local_noprobe_taskonly.yaml
-    oracle_config: configs/bridges/bridge_01_easy_local_noprobe_oracle_taskonly.yaml

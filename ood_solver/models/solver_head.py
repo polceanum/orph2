@@ -17,6 +17,9 @@ class SolverHead(nn.Module):
         value_features_only: bool = False,
         use_modulo_shift_adapter: bool = False,
         use_demo_shift_prior: bool = False,
+        use_mechanism_router: bool = False,
+        num_mechanism_experts: int = 1,
+        mechanism_router_temperature: float = 1.0,
     ):
         super().__init__()
         self.vocab_size = int(vocab_size)
@@ -25,6 +28,9 @@ class SolverHead(nn.Module):
         self.value_features_only = bool(value_features_only)
         self.use_modulo_shift_adapter = bool(use_modulo_shift_adapter)
         self.use_demo_shift_prior = bool(use_demo_shift_prior)
+        self.use_mechanism_router = bool(use_mechanism_router) and int(num_mechanism_experts) > 1
+        self.num_mechanism_experts = max(1, int(num_mechanism_experts))
+        self.mechanism_router_temperature = float(max(1e-4, mechanism_router_temperature))
         self.query_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(max_len, d_model)
         self.value_proj = nn.Sequential(
@@ -59,6 +65,18 @@ class SolverHead(nn.Module):
         )
         self.norm = nn.LayerNorm(d_model)
         self.out = nn.Linear(d_model, vocab_size)
+        if self.use_mechanism_router:
+            self.router = nn.Sequential(
+                nn.Linear(3 * d_model, d_model),
+                nn.GELU(),
+                nn.Linear(d_model, self.num_mechanism_experts),
+            )
+            self.expert_out = nn.ModuleList(
+                [nn.Linear(d_model, vocab_size) for _ in range(self.num_mechanism_experts)]
+            )
+        else:
+            self.router = None
+            self.expert_out = None
         self.shift_out = nn.Linear(d_model, vocab_size)
         self.shift_logit_scale = nn.Parameter(torch.tensor(0.0))
         self.demo_shift_logit_scale = nn.Parameter(torch.tensor(0.0))
@@ -119,6 +137,12 @@ class SolverHead(nn.Module):
             h = h + ctx_out
         h = self.norm(h)
         base_logits = self.out(h)
+        if self.use_mechanism_router and self.router is not None and self.expert_out is not None:
+            router_in = torch.cat([context_summary, a_sum, r_sum], dim=-1)
+            route_logits = self.router(router_in) / self.mechanism_router_temperature
+            route = torch.softmax(route_logits, dim=-1)  # [B, E]
+            expert_logits = torch.stack([head(h) for head in self.expert_out], dim=1)  # [B, E, L, V]
+            base_logits = (route.unsqueeze(-1).unsqueeze(-1) * expert_logits).sum(dim=1)
 
         out_logits = base_logits
 

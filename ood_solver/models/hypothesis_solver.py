@@ -1,6 +1,7 @@
 from __future__ import annotations
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from ood_solver.types import BeliefState, EpisodeBatch
 from ood_solver.utils import batched_index_select
 
@@ -15,6 +16,8 @@ class HypothesisSolver(nn.Module):
         solver_head: nn.Module,
         soft_probe_training: bool = False,
         soft_probe_temp: float = 1.0,
+        sample_probes_during_training: bool = False,
+        sample_probe_temp: float = 1.0,
     ) -> None:
         super().__init__()
         self.encoder=encoder
@@ -25,6 +28,8 @@ class HypothesisSolver(nn.Module):
         self.solver_head=solver_head
         self.soft_probe_training = bool(soft_probe_training)
         self.soft_probe_temp = float(max(1e-4, soft_probe_temp))
+        self.sample_probes_during_training = bool(sample_probes_during_training)
+        self.sample_probe_temp = float(max(1e-4, sample_probe_temp))
         self.probe_feature_proj = nn.LazyLinear(self.belief_updater.d_model)
         self.approach_probe_predictor = nn.Sequential(
             nn.Linear(2 * self.belief_updater.d_model, self.belief_updater.d_model),
@@ -69,6 +74,9 @@ class HypothesisSolver(nn.Module):
         return BeliefState(approach_slots, approach_scores, rule_slots, rule_scores, approach_slots.new_zeros((b,0,d)), approach_scores.new_zeros((b,0)), approach_scores.new_zeros((b,1)), approach_scores.new_zeros((b,1)))
 
     def select_probe_index(self, probe_logits: torch.Tensor, step: int, episode: EpisodeBatch) -> torch.Tensor:
+        if self.training and self.sample_probes_during_training:
+            scaled = probe_logits / self.sample_probe_temp
+            return torch.distributions.Categorical(logits=scaled).sample()
         return probe_logits.argmax(dim=-1)
 
     @staticmethod
@@ -111,6 +119,10 @@ class HypothesisSolver(nn.Module):
             approach_disagreement = approach_probe_pred.var(dim=1, unbiased=False).mean(dim=-1)
 
             chosen_idx=self.select_probe_index(probe_logits, step, episode)
+            probe_log_probs = F.log_softmax(probe_logits, dim=-1)
+            chosen_logprob = probe_log_probs.gather(1, chosen_idx.unsqueeze(-1)).squeeze(-1)
+            probe_probs = probe_log_probs.exp()
+            probe_entropy = -(probe_probs * probe_log_probs).sum(dim=-1)
             if self.training and self.soft_probe_training:
                 probe_weights = torch.softmax(probe_logits / self.soft_probe_temp, dim=-1)
                 probe_weights_u = probe_weights.unsqueeze(-1)
@@ -135,6 +147,8 @@ class HypothesisSolver(nn.Module):
             logs.append({
                 'probe_logits':probe_logits,
                 'chosen_idx':chosen_idx,
+                'chosen_logprob':chosen_logprob,
+                'probe_entropy':probe_entropy,
                 'approach_scores':belief.approach_scores,
                 'rule_scores':belief.rule_scores,
                 'surprise':belief.surprise,
