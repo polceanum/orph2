@@ -11,8 +11,36 @@ This repository is intentionally narrowed to an RL-first OOD adaptation track.
 ## Prioritize
 
 - OOD accuracy delta: `structured - recurrent_rl`.
+- OOD accuracy delta: `structured - standard_actor_critic`.
 - Stable multi-seed evidence.
 - Fast failure detection via live JSONL logs.
+- Chance and oracle context in result summaries.
+
+## Scientific Protocol
+
+- Always report IID + OOD for every compared method.
+- Always include:
+  - `structured`
+  - `recurrent_rl`
+  - `standard_actor_critic`
+  - random-chance reference
+  - oracle reference (when available)
+- Use:
+  - 1 seed for exploratory iteration
+  - 3 seeds for candidate acceptance
+  - 5 seeds for stronger claims
+- Reject variants that degrade either:
+  - absolute structured OOD
+  - or structured-vs-baseline OOD delta
+
+## Standardization Path
+
+- Keep current bridge tasks for continuity.
+- Add standardized benchmarks gradually; do not replace existing tests abruptly.
+- Prefer controlled benchmark additions where all methods share:
+  - same train budget
+  - same seeds
+  - same eval protocol
 
 ## Avoid
 
