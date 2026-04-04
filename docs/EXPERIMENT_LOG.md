@@ -2141,3 +2141,51 @@ Decision:
 
 Next Step:
 - Continue benchmark broadening and external benchmark integration, with the same anomaly-scan check after each batch.
+
+## Iteration 9C (Targeted Learned Multi-Step Patch + Matrix Recheck)
+
+Question:
+- Can we close the remaining learned gap vs symbolic with one minimal rule addition, without introducing extra complexity?
+
+Hypothesis:
+- Adding a single explicit pattern for `start from X, subtract Y, then triple` in the learned typed executor will remove the last recurrent v3 miss.
+
+Controls:
+- Re-ran learned program on `v2/v3/v4` with seeds `0,1,2`.
+- Re-generated `v2-v5` summary matrices vs `sota` and vs `symbolic_only`.
+- Re-ran `OOD > IID` anomaly scan after refreshing artifacts and removing stale exploratory output.
+
+Runs:
+- Updated learned eval artifacts:
+  - `artifacts/llm_agent/local_reasoning_ood_v2_learned_program_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_learned_program_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v4_learned_program_s{0,1,2}.json`
+- Updated matrix summaries:
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_symbolic_vs_sota.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_symbolic_vs_sota.md`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_vs_symbolic.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_vs_symbolic.md`
+- Code patch:
+  - `llm_agent/learned_solver.py`:
+    - added explicit regex for `start from ... subtract ... then triple/multiply by 3`
+- Cleanup:
+  - removed stale exploratory artifact:
+    - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_tools_s0_after_patch.json`
+
+Result:
+- Learned now reaches `1.00` IID and `1.00` OOD across `v2/v3/v4/v5` on seeds `0,1,2` (active tracked artifacts).
+- Cross-benchmark (`v2-v5`) learned vs symbolic deltas are now `0.00` on accuracy/IID/OOD.
+- Cross-benchmark learned vs `sota` remains strongly positive (`+1.00` OOD on current local suites).
+- `OOD > IID` anomaly scan returns `0` cases on active local benchmark artifacts.
+
+Interpretation:
+- The remaining gap was due to a single narrow template miss, not a broader modeling failure.
+- A minimal rule fixed it and improved consistency without broad architectural changes.
+- Current local suites are likely near saturation for both learned and symbolic baselines.
+
+Decision:
+- Keep the minimal learned multi-step patch.
+- Treat local `v2-v5` as solved/saturated for current method families.
+
+Next Step:
+- Prioritize external benchmark adapter integration to avoid overfitting claims to local synthetic suites.

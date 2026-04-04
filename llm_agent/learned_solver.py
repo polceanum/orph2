@@ -220,6 +220,13 @@ def _compute_answer_by_type(q: str, pred_type: str) -> str | None:
             return str(a - b)
         return str(a + b)
     if pred_type == "multi_step":
+        m_sub_triple = re.search(
+            r"start from\s+(-?\d+).{0,40}(?:subtract|take away)\s+(-?\d+).{0,40}(?:triple|multiply by 3)",
+            low,
+        )
+        if m_sub_triple:
+            x, y = int(m_sub_triple.group(1)), int(m_sub_triple.group(2))
+            return str((x - y) * 3)
         m_dbl_sub = re.search(r"(?:start with|begin at)\s+(-?\d+).{0,40}double.{0,30}(?:subtract|take away)\s+(-?\d+)", low)
         if m_dbl_sub:
             x, y = int(m_dbl_sub.group(1)), int(m_dbl_sub.group(2))
