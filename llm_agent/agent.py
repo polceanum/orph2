@@ -176,6 +176,15 @@ def _symbolic_solve(question: str) -> str | None:
         return str(abs(int(m.group(1)) - int(m.group(2))))
 
     # 2) larger number selection
+    m = re.search(r"compare only\s+(-?\d+)\s+(?:and|or)\s+(-?\d+)", low)
+    if m:
+        return str(max(int(m.group(1)), int(m.group(2))))
+    m = re.search(r"pick the (?:bigger|larger|greater) (?:one|value).*?(-?\d+)\s+(?:and|or)\s+(-?\d+)", low)
+    if m:
+        return str(max(int(m.group(1)), int(m.group(2))))
+    m = re.search(r"(?:greater|larger|bigger).*?(-?\d+)\s+(?:and|or)\s+(-?\d+)", low)
+    if m:
+        return str(max(int(m.group(1)), int(m.group(2))))
     if "larger" in low or "bigger" in low or "greater" in low:
         ints = _parse_ints(low)
         if len(ints) >= 2:
@@ -195,15 +204,19 @@ def _symbolic_solve(question: str) -> str | None:
     m = re.search(r"(monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low)
     if m:
         day = m.group(1)
-        if "after" in low or "follows" in low:
+        m2 = re.search(r"(\d+)\s+days?\s+(after|before)", low)
+        if m2:
+            off = int(m2.group(1))
+            direction = m2.group(2)
+        else:
             ints = _parse_ints(low)
-            off = ints[0] if ints else 1
+            off = ints[-1] if ints else 1
+            direction = "before" if "before" in low else "after"
+        if direction == "after" or "follows" in low:
             w = _weekday_after(day, off)
             if w:
                 return w
-        if "before" in low:
-            ints = _parse_ints(low)
-            off = ints[0] if ints else 1
+        if direction == "before":
             w = _weekday_after(day, -off)
             if w:
                 return w

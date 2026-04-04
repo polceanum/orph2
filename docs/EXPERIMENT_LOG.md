@@ -2095,3 +2095,49 @@ Decision:
 Next Step:
 - Add at least one external small-footprint benchmark adapter runnable on Mac (with documented split semantics).
 - Re-run the same `sota/symbolic/learned` matrix and update this log with apples-to-apples comparisons.
+
+## Iteration 9B (OOD > IID Audit and Baseline Parser Fix)
+
+Question:
+- Why do some runs show `OOD > IID`, and is that a metrics bug or model/benchmark artifact?
+
+Hypothesis:
+- The effect comes from a narrow parser brittleness on IID phrasing with distractor numbers, not from split metric computation.
+
+Controls:
+- Audited all local benchmark artifacts for `OOD > IID`.
+- Re-ran `v5` `symbolic_only` on seeds `0,1,2` after parser changes.
+- Re-generated v5 and v2-v5 summary tables.
+
+Runs:
+- Audit scan (all JSON artifacts with split metrics): internal check script.
+- Updated artifacts:
+  - `artifacts/llm_agent/local_reasoning_ood_v5_mock_symbolic_only_s{0,1,2}.json`
+  - `artifacts/llm_agent/mock_matrix_v5_s012_learned_symbolic_vs_sota.json`
+  - `artifacts/llm_agent/mock_matrix_v5_s012_learned_vs_symbolic.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_vs_symbolic.json`
+- Code patch:
+  - `llm_agent/agent.py` (`_symbolic_solve`):
+    - explicit `compare only ...` parsing
+    - explicit weekday `N days after/before` parsing
+    - avoid pulling decoy integers as offset/operands
+
+Result:
+- Prior `OOD > IID` cases were very limited (`4` artifacts total), dominated by:
+  - `v5 symbolic_only`: `iid 0.833`, `ood 0.917`
+  - one stale exploratory file: `local_reasoning_ood_v3_mock_adaptive_tools_s0_after_patch.json`
+- After fix, `v5 symbolic_only` is now:
+  - accuracy `1.00`, IID `1.00`, OOD `1.00` (all 3 seeds)
+- Current active v5 matrix no longer shows `OOD > IID` artifacts.
+
+Interpretation:
+- This was not a split-metric bug.
+- It was a brittle baseline parsing issue triggered by distractor-heavy IID phrasing.
+- The audit confirms the anomaly was narrow and now resolved in the main tracked artifacts.
+
+Decision:
+- Keep this parser fix (minimal and targeted).
+- Keep automatic `OOD > IID` artifact scans as a quick sanity check during benchmark updates.
+
+Next Step:
+- Continue benchmark broadening and external benchmark integration, with the same anomaly-scan check after each batch.
