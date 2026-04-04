@@ -1,0 +1,5 @@
+gymnasium>=0.29
+minigrid>=2.3
+stable-baselines3>=2.3
+# Procgen may require older gym stack; keep optional and isolated.
+# procgen>=0.10.7

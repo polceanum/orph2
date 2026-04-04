@@ -963,3 +963,256 @@ Status:
 Decision:
 - Keep these instrumentation and fairness fixes; they improve scientific validity and prevent silent shape errors during baseline scaling.
 - Capacity-matched recurrent still does not close the gap; structured advantage appears architectural on this benchmark.
+
+## Iteration 2O
+
+Question:
+- Which public benchmark family should we integrate next for SOTA-aligned OOD comparison while remaining runnable on a Mac?
+
+Research (primary sources):
+- Procgen benchmark page and protocol context:
+  - https://openai.com/index/procgen-benchmark/
+- Procgen package/paper citation:
+  - https://pypi.org/project/procgen/0.10.6/
+- Meta-World docs (explicit train/test benchmark splits):
+  - https://metaworld.farama.org/introduction/basic_usage/
+- Minigrid package naming/install docs:
+  - https://minigrid.farama.org/v2.2.0/release_notes/
+- Statistical reporting guidance:
+  - https://openreview.net/forum?id=uqv8-U4lKBe
+
+Decision:
+- Integrate Minigrid first (Mac-friendly, low setup friction), then Procgen, then Meta-World.
+
+Implementation:
+- Added benchmark dependencies file:
+  - `requirements-benchmarks.txt`
+- Added Minigrid smoke config:
+  - `configs/benchmarks/minigrid_door_key_smoke.yaml`
+- Added smoke evaluator script:
+  - `scripts/benchmarks/minigrid_smoke_eval.py`
+- Updated benchmark plan + README benchmark on-ramp:
+  - `docs/BENCHMARK_PLAN.md`
+  - `README.md`
+
+Run:
+- `artifacts/benchmarks/minigrid_smoke_random_s0.json`
+
+Result:
+- Random-policy DoorKey success rates:
+  - IID mean (`5x5`,`6x6`): `0.045`
+  - OOD (`8x8`): `0.000`
+
+Interpretation:
+- The split is non-trivial and suitable for controlled IID-vs-OOD iteration.
+- Benchmark plumbing now works end-to-end in `orpheus` on Mac.
+
+## Iteration 2P
+
+Question:
+- Does the structured-vs-baseline OOD gain persist under capacity-matched recurrent baselines across 3 seeds?
+
+Runs:
+- Seed 0 fairness run:
+  - `artifacts/rl/iter68_trainable_ood_m023_width96_lowent_demos4_recur192_s0.json`
+- Seeds 1,2 fairness run:
+  - `artifacts/rl/iter69_trainable_ood_m023_width96_lowent_demos4_recur192_s12.json`
+- Combined 0,1,2:
+  - `artifacts/rl/iter70_trainable_ood_m023_width96_lowent_demos4_recur192_s0to2_combined.json`
+
+Result (3-seed aggregate, `iter70`):
+- structured OOD: `0.7249 ± 0.0130`
+- recurrent(192) OOD: `0.3143 ± 0.0084`
+- standard AC(192) OOD: `0.3354 ± 0.0171`
+- deltas:
+  - structured minus recurrent OOD: `+0.4106`
+  - structured minus standard AC OOD: `+0.3895`
+
+Interpretation:
+- Capacity-matched recurrent baselines do not close the OOD gap.
+- Structured advantage remains large and reproducible on the trainable split.
+
+Decision:
+- Keep `trainable_ood_m023_width96_lowent_demos4` as main controlled benchmark.
+
+## Iteration 2Q
+
+Question:
+- Can we establish a standard PPO benchmark track in Minigrid that is both runnable on Mac and diagnostically useful?
+
+Implementation:
+- Added SB3 PPO benchmark script with IID/OOD split support:
+  - `scripts/benchmarks/minigrid_sb3_ppo.py`
+- Added configs:
+  - `configs/benchmarks/minigrid_door_key_ppo_quick.yaml`
+  - `configs/benchmarks/minigrid_empty_ppo_quick.yaml`
+  - `configs/benchmarks/minigrid_door_key_ppo_quick_fullobs.yaml`
+- Added benchmark dependency:
+  - `requirements-benchmarks.txt` now includes `stable-baselines3`
+
+Runs:
+- DoorKey quick PPO (partial obs):
+  - `artifacts/benchmarks/minigrid_ppo_quick_s0.json`
+- Empty quick PPO:
+  - `artifacts/benchmarks/minigrid_empty_ppo_quick_s0.json`
+
+Result:
+- DoorKey quick (50k steps, partial obs): IID/OOD success `0.0 / 0.0` (underfit).
+- Empty quick (100k steps): IID/OOD success `1.0 / 1.0` (saturates; too easy).
+
+Interpretation:
+- PPO benchmark harness works end-to-end.
+- Need intermediate difficulty:
+  - DoorKey-partial appears too hard at this budget.
+  - Empty is too easy.
+
+Decision:
+- Test DoorKey with `full` observation mode (run in progress) to isolate whether underfit is due to partial observability vs optimization budget.
+
+## Iteration 2R
+
+Question:
+- Can we identify a Minigrid benchmark tier that is neither saturated (`Empty`) nor collapsed (`DoorKey`/`Crossing`) at Mac-friendly quick budgets?
+
+Runs:
+- DoorKey full-observation quick:
+  - `artifacts/benchmarks/minigrid_door_key_ppo_quick_fullobs_s0.json`
+- DoorKey curriculum quick (`5x5` train -> `6x6`,`8x8` OOD):
+  - `artifacts/benchmarks/minigrid_door_key_ppo_curriculum_quick_s0.json`
+- SimpleCrossing quick:
+  - `artifacts/benchmarks/minigrid_simple_crossing_ppo_quick_s0.json`
+- Empty-Random quick:
+  - `artifacts/benchmarks/minigrid_empty_random_ppo_quick_s0.json`
+
+Result:
+- DoorKey full-observation quick: IID/OOD success `0.0 / 0.0`
+- DoorKey curriculum quick: IID/OOD success `0.0 / 0.0`
+- SimpleCrossing quick: IID/OOD success `0.0 / 0.0`
+- Empty-Random quick:
+  - IID success: `0.18`
+  - OOD success: `0.08`
+  - OOD-IID gap: `-0.10`
+
+Interpretation:
+- Empty is too easy (`1.0/1.0`) and not useful as primary OOD benchmark.
+- DoorKey and SimpleCrossing are currently too hard at these budgets under vanilla PPO.
+- Empty-Random gives non-trivial, non-saturated behavior and a measurable OOD drop.
+
+Decision:
+- Promote `Empty-Random-5x5 -> 6x6` as the first practical standardized Minigrid OOD benchmark tier.
+- Keep DoorKey/Crossing as higher-difficulty benchmarks for larger compute budgets and/or algorithmic improvements.
+
+## Iteration 2S
+
+Question:
+- Is the `Empty-Random` Minigrid OOD signal stable across seeds under a fixed PPO budget?
+
+Runs:
+- `artifacts/benchmarks/minigrid_empty_random_ppo_quick_s0.json`
+- `artifacts/benchmarks/minigrid_empty_random_ppo_quick_s1.json`
+- `artifacts/benchmarks/minigrid_empty_random_ppo_quick_s2.json`
+- Aggregate:
+  - `artifacts/benchmarks/minigrid_empty_random_ppo_quick_s0to2_aggregate.json`
+
+Result (3 seeds):
+- IID success: `0.250 ± 0.085`
+- OOD success: `0.0667 ± 0.0094`
+- OOD-IID gap: `-0.183 ± 0.091`
+
+Interpretation:
+- The benchmark is not saturated and shows a consistent OOD drop.
+- Variance exists on IID success, but OOD stays low and stable.
+
+Decision:
+- Keep `minigrid_empty_random_ppo_quick` as the first standardized, Mac-runnable OOD benchmark for ongoing method comparison.
+
+## Iteration 2T
+
+Question:
+- Does increasing PPO training budget on `Empty-Random` improve OOD transfer, or mainly improve IID fit?
+
+Run:
+- Long-budget config:
+  - `configs/benchmarks/minigrid_empty_random_ppo_long.yaml`
+- Result:
+  - `artifacts/benchmarks/minigrid_empty_random_ppo_long_s0.json`
+
+Result (seed 0):
+- IID success: `1.00`
+- OOD success: `0.08`
+- OOD-IID gap: `-0.92`
+
+Interpretation:
+- More optimization strongly increases IID fit but does not improve OOD.
+- On this split, vanilla PPO mainly overfits training-distribution specifics.
+
+Decision:
+- For benchmark iteration, keep quick budget as default reporting condition.
+- Next scientific direction on this benchmark:
+  - introduce anti-overfit variants (e.g., entropy schedules, stronger domain randomization, or train-split widening) instead of just scaling timesteps.
+
+## Iteration 2U
+
+Question:
+- Does stronger entropy regularization reduce OOD overfit on `Empty-Random`?
+
+Run:
+- `configs/benchmarks/minigrid_empty_random_ppo_quick_highent.yaml`
+- Output:
+  - `artifacts/benchmarks/minigrid_empty_random_ppo_quick_highent_s0.json`
+
+Result (seed 0):
+- IID success: `0.68`
+- OOD success: `0.08`
+- OOD-IID gap: `-0.60`
+
+Interpretation:
+- Higher entropy improved IID substantially but did not improve OOD.
+- Net effect was larger train-test gap.
+
+Decision:
+- Discard high-entropy setting as default for this benchmark.
+- Next direction: increase train-distribution diversity rather than only tuning entropy.
+
+## Iteration 2V
+
+Question:
+- Does widening train diversity (`Empty` + `Empty-Random`) improve OOD on `Empty-Random-6x6`?
+
+Run:
+- `configs/benchmarks/minigrid_empty_mixed_train_random_ood_quick.yaml`
+- Output:
+  - `artifacts/benchmarks/minigrid_empty_mixed_train_random_ood_quick_s0.json`
+
+Result (seed 0):
+- IID success (average over two train envs): `0.785`
+- OOD success: `0.08`
+- OOD-IID gap: `-0.705`
+
+Interpretation:
+- Mixing in easy deterministic training envs boosts IID but does not improve OOD.
+- This variant increases overfitting pressure rather than transfer.
+
+Decision:
+- Discard this mixed-train variant as primary benchmark setting.
+- Keep `Empty-Random` single-train-env split as the cleaner OOD signal.
+
+## Iteration 2W
+
+Question:
+- Can we standardize benchmark aggregation outputs to keep reporting consistent across many runs?
+
+Implementation:
+- Added summarizer:
+  - `scripts/benchmarks/summarize_minigrid_runs.py`
+- Produced normalized 5-seed summary:
+  - `artifacts/benchmarks/minigrid_empty_random_ppo_quick_s0to4_summary_v2.json`
+
+Result:
+- Matches prior aggregate:
+  - IID success `0.300 ± 0.133`
+  - OOD success `0.060 ± 0.011`
+  - OOD-IID gap `-0.240 ± 0.139`
+
+Decision:
+- Use `summarize_minigrid_runs.py` for benchmark aggregation in future iterations.

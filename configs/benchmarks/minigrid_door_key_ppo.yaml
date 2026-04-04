@@ -1,0 +1,26 @@
+seed: 0
+
+benchmark:
+  name: minigrid_door_key_ppo
+  minigrid:
+    iid_env_ids:
+      - MiniGrid-DoorKey-5x5-v0
+      - MiniGrid-DoorKey-6x6-v0
+    ood_env_ids:
+      - MiniGrid-DoorKey-8x8-v0
+  train:
+    total_timesteps: 200000
+    learning_rate: 3e-4
+    n_steps: 256
+    batch_size: 256
+    n_epochs: 4
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    ent_coef: 0.01
+    vf_coef: 0.5
+    device: cpu
+    verbose: 1
+  eval:
+    episodes: 100
+    max_steps: 200

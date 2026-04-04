@@ -55,3 +55,31 @@ tail -f artifacts/rl/bridge10_rl_full_s012_seed0.log.jsonl
 ## Environment
 
 Use the `orpheus` conda environment (custom macOS PyTorch build).
+
+## Benchmark On-Ramp (Minigrid, Mac-Friendly)
+
+Install optional benchmark deps:
+
+```bash
+conda run -n orpheus python -m pip install -r requirements-benchmarks.txt
+```
+
+Run Minigrid IID/OOD smoke evaluation (random policy):
+
+```bash
+conda run -n orpheus python scripts/benchmarks/minigrid_smoke_eval.py \
+  --config configs/benchmarks/minigrid_door_key_smoke.yaml \
+  --out artifacts/benchmarks/minigrid_smoke_random_s0.json
+```
+
+Benchmark roadmap and scientific protocol:
+- `docs/BENCHMARK_PLAN.md`
+
+Run standardized PPO baseline (first non-trivial Minigrid OOD tier):
+
+```bash
+conda run -n orpheus python scripts/benchmarks/minigrid_sb3_ppo.py \
+  --config configs/benchmarks/minigrid_empty_random_ppo_quick.yaml \
+  --seed 0 \
+  --out artifacts/benchmarks/minigrid_empty_random_ppo_quick_s0.json
+```

@@ -1,0 +1,14 @@
+seed: 0
+
+benchmark:
+  name: minigrid_door_key_smoke
+  minigrid:
+    # IID split: DoorKey sizes seen during development.
+    iid_env_ids:
+      - MiniGrid-DoorKey-5x5-v0
+      - MiniGrid-DoorKey-6x6-v0
+    # OOD split: larger and unseen layout scale.
+    ood_env_ids:
+      - MiniGrid-DoorKey-8x8-v0
+    eval_episodes: 100
+    max_steps: 200

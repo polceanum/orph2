@@ -1,60 +1,98 @@
-# Benchmark Plan (Gradual Standardization)
+# Benchmark Plan (Mac-First, Literature-Aligned)
 
 ## Goals
 
-- Preserve current bridge-mechanism experiments for continuity.
-- Add progressively more standard, literature-aligned benchmarks.
-- Keep apple-to-apple reporting: same metrics, same seed policy, same baseline set.
+- Preserve current bridge experiments for continuity.
+- Add at least one benchmark family used in published OOD/generalization RL work.
+- Keep comparisons scientifically controlled and reproducible on a Mac.
 
-## Required Comparators (every benchmark)
+## Sources (Primary)
+
+- Procgen benchmark overview: https://openai.com/index/procgen-benchmark/
+- Procgen package and paper citation: https://pypi.org/project/procgen/0.10.6/
+- Meta-World docs: https://metaworld.farama.org/
+- Minigrid docs (package naming/install context): https://minigrid.farama.org/v2.2.0/release_notes/
+- Statistical evaluation guidance (RLiable paper): https://openreview.net/forum?id=uqv8-U4lKBe
+
+## Candidate Selection (as of 2026-04-04)
+
+1. Minigrid (recommended first)
+- Why now:
+  - Lightweight and practical on Mac CPU.
+  - Widely used in generalization/meta-RL toy-to-mid-scale experiments.
+  - Easy to define explicit IID/OOD splits by environment size/layout family.
+- Risk:
+  - Less standardized "single leaderboard" than Procgen.
+
+2. Procgen (recommended second)
+- Why:
+  - Strong literature visibility for generalization.
+  - Explicit train/test level split protocol.
+- Risk on Mac:
+  - Dependency friction is higher than Minigrid; may require stack isolation.
+
+3. Meta-World (recommended third)
+- Why:
+  - Standard benchmark for multi-task/meta-RL.
+- Risk on Mac:
+  - MuJoCo dependency + robotics setup increases setup/runtime complexity.
+
+## Decision
+
+- Start integration with Minigrid now.
+- Keep Procgen as next standard benchmark once Minigrid protocol is stable.
+- Add Meta-World only after we have stable benchmark automation.
+
+## Required Comparators (Every Benchmark)
 
 - `structured` (our method)
 - `recurrent_rl` baseline
 - `standard_actor_critic` baseline
-- `random chance` reference
-- `oracle` reference (same model class trained on target OOD distribution)
+- `random` reference
+- `oracle` reference (same class trained directly on target OOD split)
 
 ## Required Metrics
 
-- IID token/sequence accuracy
-- OOD token/sequence accuracy
-- Delta:
-  - structured - recurrent
-  - structured - standard actor-critic
-- Chance gap:
-  - structured - random
-- Oracle gap + transfer ratio:
-  - oracle - structured
-  - structured / oracle
+- IID performance
+- OOD performance
+- `structured - recurrent_rl` delta
+- `structured - standard_actor_critic` delta
+- `structured - random` gap
+- Oracle gap and transfer ratio (`structured / oracle`)
+- Efficiency: performance per million trainable parameters
 
 ## Seed Policy
 
-- Iteration: 1 seed
+- Fast iteration: 1 seed
 - Candidate acceptance: 3 seeds
 - Main claims: 5 seeds
 
-## Benchmark Ladder
-
-1. Current bridge mechanism benchmarks (keep)
-2. Harder synthetic OOD variants:
-   - unseen stochastic mechanism
-   - wider param ranges
-   - fewer demos / more probes
-3. Standardized toy benchmarks from literature:
-   - contextual bandit-style OOD shifts
-   - small POMDP/meta-RL suites with train/test task splits
-4. Mid-scale benchmark suite:
-   - at least one public benchmark with widely used baselines and published metrics
-
 ## Fairness Rules
 
-- Same training budget across compared methods unless explicitly reported.
-- Same environment generation seeds for each compared method.
-- Same optimizer class unless benchmark protocol requires otherwise.
-- No method-specific tuning on test/OOD split.
+- Same env split and seed set across methods.
+- Same training budget unless explicitly declared otherwise.
+- No OOD/test-informed tuning.
+- Report confidence intervals for final comparisons.
 
-## Reporting Artifacts
+## Current Integration Status
 
-- Raw run JSON in `artifacts/rl/`
-- Summary JSON + markdown via `scripts/summarize_rl_results.py`
-- Planned: standard plotting script output for all accepted runs
+- Added Minigrid smoke config:
+  - `configs/benchmarks/minigrid_door_key_smoke.yaml`
+- Added Minigrid smoke evaluator (random-policy baseline):
+  - `scripts/benchmarks/minigrid_smoke_eval.py`
+- Added optional benchmark deps:
+  - `requirements-benchmarks.txt`
+- Added SB3 PPO benchmark trainer/evaluator:
+  - `scripts/benchmarks/minigrid_sb3_ppo.py`
+
+## Next Steps
+
+1. Install benchmark deps in `orpheus`:
+   - `conda run -n orpheus python -m pip install -r requirements-benchmarks.txt`
+2. Run smoke benchmark:
+   - `conda run -n orpheus python scripts/benchmarks/minigrid_smoke_eval.py --config configs/benchmarks/minigrid_door_key_smoke.yaml --out artifacts/benchmarks/minigrid_smoke_random_s0.json`
+3. Use `Empty-Random` as the first non-trivial Minigrid OOD benchmark tier:
+   - train: `MiniGrid-Empty-Random-5x5-v0`
+   - test/OOD: `MiniGrid-Empty-Random-6x6-v0`
+4. Add train/eval harness for `structured` and in-repo baselines on the same Minigrid split.
+5. Keep DoorKey/Crossing as higher-difficulty benchmarks with larger budgets.
