@@ -1,0 +1,17 @@
+benchmark:
+  name: local_reasoning_ood_v6_mock_sota
+  path: benchmarks/local_reasoning_ood_v6.jsonl
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: sota_sc_verifier
+  use_symbolic_solver: false
+  rewrite_question: true
+  self_consistency_k: 5
+  verifier_enabled: true
+
+output:
+  save_predictions: true

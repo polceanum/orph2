@@ -2189,3 +2189,56 @@ Decision:
 
 Next Step:
 - Prioritize external benchmark adapter integration to avoid overfitting claims to local synthetic suites.
+
+## Iteration 10A (Broadened Local Suite v6 + Saturation Check)
+
+Question:
+- Does adding another broadened benchmark (`v6`) reveal nontrivial differences between learned and symbolic methods, or are local suites now saturated?
+
+Hypothesis:
+- `v6` would add stress via negatives + phrasing variants and might separate learned vs symbolic performance.
+
+Controls:
+- Methods: `sota`, `symbolic_only`, `learned_program`
+- Seeds: `0,1,2`
+- Full IID/OOD reporting + delta summaries
+
+Runs:
+- New benchmark/configs:
+  - `benchmarks/local_reasoning_ood_v6.jsonl`
+  - `configs/llm_agent/local_reasoning_ood_v6_mock_sota.yaml`
+  - `configs/llm_agent/local_reasoning_ood_v6_mock_symbolic_only.yaml`
+  - `configs/llm_agent/local_reasoning_ood_v6_learned_program.yaml`
+- Learned training checkpoint:
+  - `artifacts/llm_agent/learned/v6_iid_type_solver_s0.pt`
+- v6 eval artifacts:
+  - `artifacts/llm_agent/local_reasoning_ood_v6_mock_sota_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v6_mock_symbolic_only_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v6_learned_program_s{0,1,2}.json`
+- v6 and aggregate summaries:
+  - `artifacts/llm_agent/mock_matrix_v6_s012_learned_symbolic_vs_sota.json`
+  - `artifacts/llm_agent/mock_matrix_v6_s012_learned_vs_symbolic.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_v6_s012_learned_symbolic_vs_sota.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_v6_s012_learned_vs_symbolic.json`
+
+Result:
+- Initial v6 symbolic run exposed one template miss (`start from X, add Y, then multiply by Z`) and scored `0.958`.
+- After one targeted symbolic parser patch:
+  - v6 symbolic: `1.00` IID, `1.00` OOD (3 seeds)
+  - v6 learned: `1.00` IID, `1.00` OOD (3 seeds)
+  - v6 sota: `0.00` IID, `0.00` OOD
+  - random chance (v6): `0.0833`
+- Aggregate across `v2-v6`:
+  - learned vs symbolic OOD delta: `0.00`
+  - learned vs sota OOD delta: `+1.00`
+
+Interpretation:
+- v6 broadened phrasing/number regimes but did not separate learned vs symbolic after baseline parity fixes.
+- This is a valid **null result**: local synthetic suites are now effectively saturated for current solver families.
+
+Decision:
+- Keep v6 as part of the local ladder (`v2-v6`) for regression checks.
+- Do not claim additional learned advantage from v6; parity is the correct interpretation.
+
+Next Step:
+- Shift effort to external benchmark adapters with established literature baselines, since further local-suite iterations are unlikely to be informative.

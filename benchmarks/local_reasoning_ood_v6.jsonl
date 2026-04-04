@@ -1,0 +1,25 @@
+{"id":"v6-001","question":"Ignore 999. Compute -14 + 9.","answer":"-5","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v6-002","question":"Poster numbers 3 and 70 are decoys. Evaluate 45 minus 58.","answer":"-13","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v6-003","question":"Compare only -12 and -19. Which value is greater?","answer":"-12","split":"iid","metadata":{"type":"comparison_max"}}
+{"id":"v6-004","question":"Route code 41 is noise. From 13:15 to 15:05, elapsed minutes?","answer":"110","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"v6-005","question":"Calendar note says 8, but answer this: what day is 2 days before Sunday?","answer":"Friday","split":"iid","metadata":{"type":"weekday_offset"}}
+{"id":"v6-006","question":"Start with 11, double it, then subtract 8. Ignore side number 44.","answer":"14","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v6-007","question":"Take 6, add 7, then multiply by 4. Disregard 101.","answer":"52","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v6-008","question":"The listed 2 and 2 are unrelated. Multiply 14 by 5.","answer":"70","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v6-009","question":"Billboard 5 and 6 are unrelated. Compute 144 over 12.","answer":"12","split":"iid","metadata":{"type":"division"}}
+{"id":"v6-010","question":"Value 80 is unrelated. Find half of 30 plus 4.","answer":"19","split":"iid","metadata":{"type":"half_plus"}}
+{"id":"v6-011","question":"Pick the greater value between 700 and 670 (ignore 7).","answer":"700","split":"iid","metadata":{"type":"comparison_max"}}
+{"id":"v6-012","question":"Train marker 333 is irrelevant. From 11:40 PM to 12:10 AM, minutes?","answer":"30","split":"iid","metadata":{"type":"time_delta"}}
+
+{"id":"v6-013","question":"Ignore 999 and 111. What is -14 plus 9?","answer":"-5","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v6-014","question":"Do not use 3 or 70. Calculate 45 - 58.","answer":"-13","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v6-015","question":"Only compare -12 or -19; choose the bigger one.","answer":"-12","split":"ood","metadata":{"type":"comparison_max"}}
+{"id":"v6-016","question":"Code 41 is irrelevant. A trip runs 13:15 until 15:05. How many minutes?","answer":"110","split":"ood","metadata":{"type":"time_delta"}}
+{"id":"v6-017","question":"Even if a note says 8, which weekday is two days before Sunday?","answer":"Friday","split":"ood","metadata":{"type":"weekday_offset"}}
+{"id":"v6-018","question":"Begin at 11, multiply by 2, then take away 8. Ignore 44.","answer":"14","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v6-019","question":"Start from 6, add 7, then multiply by 4; 101 is noise.","answer":"52","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v6-020","question":"The numbers 2 and 2 are decoys. Compute 14 * 5.","answer":"70","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v6-021","question":"Side numbers 5 and 6 are noise. Compute 144 divided by 12.","answer":"12","split":"ood","metadata":{"type":"division"}}
+{"id":"v6-022","question":"Value 80 is unrelated. Four added to half of 30 gives what?","answer":"19","split":"ood","metadata":{"type":"half_plus"}}
+{"id":"v6-023","question":"Choose the larger number: 700 or 670 (7 is unrelated).","answer":"700","split":"ood","metadata":{"type":"comparison_max"}}
+{"id":"v6-024","question":"Marker 333 is irrelevant. From 11:40 PM until 12:10 AM, elapsed minutes?","answer":"30","split":"ood","metadata":{"type":"time_delta"}}

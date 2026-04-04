@@ -251,6 +251,12 @@ def _symbolic_solve(question: str) -> str | None:
         x, y, z = int(m.group(1)), int(m.group(3)), int(m.group(5))
         return str((x + y) * z)
 
+    # "start from X, add Y, then multiply by Z"
+    m = re.search(r"start from (-?\d+).*(add)\s*(-?\d+).*(multiply by|times)\s*(-?\d+)", low)
+    if m:
+        x, y, z = int(m.group(1)), int(m.group(3)), int(m.group(5))
+        return str((x + y) * z)
+
     # "start from X, subtract Y, then triple result"
     m = re.search(r"start from (-?\d+).*(subtract|take away)\s*(-?\d+).*(triple|multiply by 3)", low)
     if m:
