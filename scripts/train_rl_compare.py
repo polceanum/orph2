@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.parameter import UninitializedParameter
 import torch.nn.functional as F
 import yaml
 
@@ -86,13 +87,18 @@ def build_structured_model(cfg: dict, device: str) -> HypothesisSolver:
     d_model = int(cfg_get(cfg, "model.d_model", 64))
     vocab_size = int(cfg_get(cfg, "env.vocab_size", 12))
     seq_len = int(cfg_get(cfg, "env.seq_len", 6))
+    num_demos = int(cfg_get(cfg, "env.num_demos", 3))
+    # Encoder consumes `initial_tokens` only, which are demo input/output pairs:
+    # length = num_demos * 2 * seq_len.
+    min_context_len = max(1, num_demos * 2 * seq_len)
+    encoder_max_len = int(cfg_get(cfg, "model.encoder_max_len", max(seq_len * 8, min_context_len + 8)))
     model = HypothesisSolver(
         encoder=SimpleSequenceEncoder(
             vocab_size=vocab_size,
             d_model=d_model,
             nhead=int(cfg_get(cfg, "model.nhead", 4)),
             num_layers=int(cfg_get(cfg, "model.num_layers", 2)),
-            max_len=seq_len * 8,
+            max_len=encoder_max_len,
             use_value_features=bool(cfg_get(cfg, "model.use_value_features", False)),
             value_features_only=bool(cfg_get(cfg, "model.value_features_only", False)),
         ),
@@ -129,10 +135,12 @@ def build_structured_model(cfg: dict, device: str) -> HypothesisSolver:
 
 
 def build_recurrent_model(cfg: dict, device: str) -> RecurrentBaseline:
+    d_model = int(cfg_get(cfg, "model.d_model", 64))
+    hidden_dim = int(cfg_get(cfg, "baselines.recurrent.hidden_dim", d_model))
     model = RecurrentBaseline(
         vocab_size=int(cfg_get(cfg, "env.vocab_size", 12)),
-        d_model=int(cfg_get(cfg, "model.d_model", 64)),
-        hidden_dim=int(cfg_get(cfg, "model.d_model", 64)),
+        d_model=d_model,
+        hidden_dim=hidden_dim,
         seq_len=int(cfg_get(cfg, "env.seq_len", 6)),
         num_probe_steps=int(cfg_get(cfg, "env.num_probe_steps", 2)),
         use_probe_policy=True,
@@ -164,6 +172,20 @@ def aggregate(values: list[float]) -> dict:
     mean = float(sum(values) / len(values))
     var = float(sum((v - mean) ** 2 for v in values) / len(values))
     return {"mean": mean, "std": var**0.5}
+
+
+def count_trainable_params(modules: list[nn.Module | None]) -> int:
+    total = 0
+    for module in modules:
+        if module is None:
+            continue
+        for p in module.parameters():
+            if not p.requires_grad:
+                continue
+            if isinstance(p, UninitializedParameter):
+                continue
+            total += p.numel()
+    return int(total)
 
 
 @torch.no_grad()
@@ -384,13 +406,14 @@ def run_seed(
     params_r = list(recurrent.parameters())
     params_a = list(standard_ac.parameters()) if standard_ac is not None else []
     if use_critic:
+        recurrent_hidden_dim = int(cfg_get(cfg, "baselines.recurrent.hidden_dim", d_model))
         value_head_s = nn.Sequential(
             nn.Linear(2 * d_model + 2, d_model),
             nn.GELU(),
             nn.Linear(d_model, 1),
         ).to(device)
         value_head_r = nn.Sequential(
-            nn.Linear(d_model, d_model),
+            nn.Linear(recurrent_hidden_dim, d_model),
             nn.GELU(),
             nn.Linear(d_model, 1),
         ).to(device)
@@ -403,6 +426,12 @@ def run_seed(
                 nn.Linear(d_model, 1),
             ).to(device)
             params_a += list(value_head_a.parameters())
+    param_counts = {
+        "structured": count_trainable_params([structured, value_head_s]),
+        "recurrent_rl": count_trainable_params([recurrent, value_head_r]),
+    }
+    if standard_ac is not None:
+        param_counts["standard_actor_critic"] = count_trainable_params([standard_ac, value_head_a])
     opt_s = torch.optim.AdamW(params_s, lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
     opt_r = torch.optim.AdamW(params_r, lr=lr, weight_decay=float(cfg_get(cfg, "rl.weight_decay", 1e-4)))
     opt_a = (
@@ -622,11 +651,52 @@ def run_seed(
     result = {
         "structured": {"iid": structured_iid, "ood": structured_ood},
         "recurrent_rl": {"iid": recurrent_iid, "ood": recurrent_ood},
+        "param_counts": param_counts,
     }
     if standard_ac is not None:
         standard_iid = evaluate_model(standard_ac, iid_env, device, eval_batches, batch_size, structured=False)
         standard_ood = evaluate_model(standard_ac, ood_env, device, eval_batches, batch_size, structured=False)
         result["standard_actor_critic"] = {"iid": standard_iid, "ood": standard_ood}
+
+    # Accuracy-per-parameter diagnostic for efficiency-aware reporting.
+    eff = {}
+    for key, pcount in param_counts.items():
+        model_blob = result.get(key)
+        if not model_blob:
+            continue
+        denom = max(float(pcount), 1.0)
+        eff[key] = {
+            "iid_seq_acc_per_mparam": float(model_blob["iid"]["seq_acc"]) / (denom / 1_000_000.0),
+            "ood_seq_acc_per_mparam": float(model_blob["ood"]["seq_acc"]) / (denom / 1_000_000.0),
+        }
+    result["efficiency"] = eff
+
+    # Optional diagnostic: evaluate each OOD mechanism separately.
+    if bool(cfg_get(cfg, "eval.mechanism_breakdown", False)):
+        mech_ids = cfg_get(cfg, "eval.ood.mechanisms", None)
+        if isinstance(mech_ids, list) and len(mech_ids) > 0:
+            per_mech = {}
+            ood_seed_offset = int(cfg_get(cfg, "eval.ood.seed_offset", 999))
+            for mech in mech_ids:
+                mech_i = int(mech)
+                mech_cfg = json.loads(json.dumps(cfg))
+                mech_cfg.setdefault("eval", {}).setdefault("ood", {})["mechanisms"] = [mech_i]
+                mech_env = build_env_from_cfg(
+                    mech_cfg,
+                    section="eval.ood",
+                    seed=seed,
+                    seed_offset=ood_seed_offset,
+                )
+                mech_blob = {
+                    "structured": evaluate_model(structured, mech_env, device, eval_batches, batch_size, structured=True),
+                    "recurrent_rl": evaluate_model(recurrent, mech_env, device, eval_batches, batch_size, structured=False),
+                }
+                if standard_ac is not None:
+                    mech_blob["standard_actor_critic"] = evaluate_model(
+                        standard_ac, mech_env, device, eval_batches, batch_size, structured=False
+                    )
+                per_mech[str(mech_i)] = mech_blob
+            result["ood_per_mechanism"] = per_mech
     return result
 
 
@@ -662,32 +732,52 @@ def main():
             global_log_jsonl_path=global_log_path,
         )
 
-    rows = {"structured_iid": [], "structured_ood": [], "recurrent_iid": [], "recurrent_ood": []}
+    rows = {
+        "structured_iid": [],
+        "structured_ood": [],
+        "recurrent_iid": [],
+        "recurrent_ood": [],
+        "structured_ood_eff": [],
+        "recurrent_ood_eff": [],
+    }
+    param_rows = {
+        "structured": [],
+        "recurrent_rl": [],
+    }
     use_standard_ac = False
     for blob in per_seed.values():
         rows["structured_iid"].append(blob["structured"]["iid"]["seq_acc"])
         rows["structured_ood"].append(blob["structured"]["ood"]["seq_acc"])
         rows["recurrent_iid"].append(blob["recurrent_rl"]["iid"]["seq_acc"])
         rows["recurrent_ood"].append(blob["recurrent_rl"]["ood"]["seq_acc"])
+        rows["structured_ood_eff"].append(blob["efficiency"]["structured"]["ood_seq_acc_per_mparam"])
+        rows["recurrent_ood_eff"].append(blob["efficiency"]["recurrent_rl"]["ood_seq_acc_per_mparam"])
+        param_rows["structured"].append(float(blob["param_counts"]["structured"]))
+        param_rows["recurrent_rl"].append(float(blob["param_counts"]["recurrent_rl"]))
         if "standard_actor_critic" in blob:
             use_standard_ac = True
             rows.setdefault("standard_ac_iid", []).append(blob["standard_actor_critic"]["iid"]["seq_acc"])
             rows.setdefault("standard_ac_ood", []).append(blob["standard_actor_critic"]["ood"]["seq_acc"])
+            rows.setdefault("standard_ac_ood_eff", []).append(blob["efficiency"]["standard_actor_critic"]["ood_seq_acc_per_mparam"])
+            param_rows.setdefault("standard_actor_critic", []).append(float(blob["param_counts"]["standard_actor_critic"]))
 
     summary = {
         "config": args.config,
         "seeds": seeds,
         "per_seed": per_seed,
         "aggregate": {k: aggregate(v) for k, v in rows.items()},
+        "param_counts": {k: aggregate(v) for k, v in param_rows.items()},
         "delta_structured_minus_recurrent": {
             "iid": aggregate([a - b for a, b in zip(rows["structured_iid"], rows["recurrent_iid"])]),
             "ood": aggregate([a - b for a, b in zip(rows["structured_ood"], rows["recurrent_ood"])]),
+            "ood_efficiency": aggregate([a - b for a, b in zip(rows["structured_ood_eff"], rows["recurrent_ood_eff"])]),
         },
     }
     if use_standard_ac:
         summary["delta_structured_minus_standard_actor_critic"] = {
             "iid": aggregate([a - b for a, b in zip(rows["structured_iid"], rows["standard_ac_iid"])]),
             "ood": aggregate([a - b for a, b in zip(rows["structured_ood"], rows["standard_ac_ood"])]),
+            "ood_efficiency": aggregate([a - b for a, b in zip(rows["structured_ood_eff"], rows["standard_ac_ood_eff"])]),
         }
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

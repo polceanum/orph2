@@ -18,7 +18,9 @@ class HiddenMechanismSequenceEnv:
         num_demos:int=3,
         seed:int=0,
         mechanisms:list[int] | None = None,
+        mechanism_sampling_weights:list[float] | None = None,
         param_ranges:list[tuple[int, int]] | list[list[int]] | None = None,
+        recursive_mode: str = "sum_halves",
         local_use_left_context: bool = True,
         input_value_range: tuple[int, int] | list[int] | None = None,
         probe_value_range: tuple[int, int] | list[int] | None = None,
@@ -30,7 +32,9 @@ class HiddenMechanismSequenceEnv:
         self.num_demos=num_demos
         self.generator=torch.Generator().manual_seed(seed)
         self.mechanisms = mechanisms if mechanisms is not None else [0, 1, 2, 3]
+        self.mechanism_sampling_weights = mechanism_sampling_weights
         self.param_ranges = param_ranges if param_ranges is not None else [(0, vocab_size)] * 3
+        self.recursive_mode = str(recursive_mode)
         self.local_use_left_context = bool(local_use_left_context)
         self.input_value_range = (
             (int(input_value_range[0]), int(input_value_range[1]))
@@ -48,8 +52,25 @@ class HiddenMechanismSequenceEnv:
         for mech in self.mechanisms:
             if mech not in (0, 1, 2, 3):
                 raise ValueError(f"Unsupported mechanism id: {mech}")
+        if self.mechanism_sampling_weights is not None:
+            if len(self.mechanism_sampling_weights) != len(self.mechanisms):
+                raise ValueError(
+                    "mechanism_sampling_weights must match mechanisms length "
+                    f"({len(self.mechanisms)}), got {len(self.mechanism_sampling_weights)}."
+                )
+            w = torch.tensor(self.mechanism_sampling_weights, dtype=torch.float32)
+            if bool((w < 0).any()):
+                raise ValueError("mechanism_sampling_weights must be non-negative.")
+            if float(w.sum().item()) <= 0.0:
+                raise ValueError("mechanism_sampling_weights must have positive total mass.")
+            self.mechanism_sampling_weights = (w / w.sum()).tolist()
         if len(self.param_ranges) != 3:
             raise ValueError("param_ranges must provide 3 [low, high) ranges.")
+        if self.recursive_mode not in ("sum_halves", "anchor_pair"):
+            raise ValueError(
+                f"Unsupported recursive_mode={self.recursive_mode!r}. "
+                "Expected one of: 'sum_halves', 'anchor_pair'."
+            )
         for lo, hi in self.param_ranges:
             if not (0 <= lo < hi <= self.vocab_size):
                 raise ValueError(
@@ -67,7 +88,11 @@ class HiddenMechanismSequenceEnv:
                 )
 
     def _sample_mechanism(self, batch_size:int)->torch.Tensor:
-        mech_idx = torch.randint(0, len(self.mechanisms), (batch_size,), generator=self.generator)
+        if self.mechanism_sampling_weights is None:
+            mech_idx = torch.randint(0, len(self.mechanisms), (batch_size,), generator=self.generator)
+        else:
+            probs = torch.tensor(self.mechanism_sampling_weights, dtype=torch.float32)
+            mech_idx = torch.multinomial(probs, num_samples=batch_size, replacement=True, generator=self.generator)
         mech_vals = torch.tensor(self.mechanisms, dtype=torch.long)
         return mech_vals[mech_idx]
 
@@ -89,6 +114,12 @@ class HiddenMechanismSequenceEnv:
         return (x + shift) % self.vocab_size
 
     def _transform_recursive(self, x:torch.Tensor, params:torch.Tensor)->torch.Tensor:
+        if self.recursive_mode == "anchor_pair":
+            half = x.size(-1) // 2
+            left_anchor = x[:, 0:1]
+            right_anchor = x[:, half:half + 1]
+            global_ctx = (left_anchor + right_anchor + params[:, 1].unsqueeze(-1)) % self.vocab_size
+            return (x + global_ctx) % self.vocab_size
         half=x.size(-1)//2
         left=x[:,:half].sum(dim=-1, keepdim=True)%self.vocab_size
         right=x[:,half:].sum(dim=-1, keepdim=True)%self.vocab_size
