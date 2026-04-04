@@ -32,7 +32,7 @@ Demonstrate reproducible OOD gains from orchestration/tooling, not just prompt l
 
 ## Practical Benchmark Ladder (Mac-Friendly First)
 
-1. Local reasoning OOD fixtures (`v1`, `v2`, `v3`)
+1. Local reasoning OOD fixtures (`v1`-`v6`)
 - Purpose: rapid debugging of routing/tool correctness
 - Not sufficient for SOTA claims
 
@@ -74,3 +74,20 @@ After each meaningful batch, append `docs/EXPERIMENT_LOG.md` with:
 - Interpretation
 - Decision
 - Next step
+
+## Claim Gate
+
+Before any "SOTA" wording, run:
+
+```bash
+conda run -n orpheus python scripts/validate_sota_claim_readiness.py \
+  --benchmark-key <benchmark_family_key> \
+  --local-benchmark <local_benchmark_tag> \
+  --seeds 0,1,2 \
+  --methods sota,learned_program,symbolic_only \
+  --out-json <claim_check.json>
+```
+
+Reference files:
+- `docs/SOTA_BASELINE_POLICY.md`
+- `docs/LITERATURE_BASELINE_REGISTRY.json`

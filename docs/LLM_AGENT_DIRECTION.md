@@ -36,6 +36,8 @@ The active target is benchmark-relevant LLM-agent performance (2026 landscape), 
 - Use 1 seed for exploratory passes, 3+ seeds for acceptance.
 - Store full prediction-level outputs to support error analysis.
 - Record negative results.
+- Use component-contribution deltas from `docs/SYSTEM_COMPONENTS_AND_CONTRIBUTIONS.md`.
+- Run `scripts/validate_sota_claim_readiness.py` before any SOTA wording.
 
 ## Benchmark Roadmap
 

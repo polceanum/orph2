@@ -1,0 +1,44 @@
+{
+  "benchmarks": {
+    "mmlu": {
+      "paper": {
+        "title": "Measuring Massive Multitask Language Understanding",
+        "url": "https://arxiv.org/abs/2009.03300"
+      },
+      "metric": "accuracy",
+      "notes": "Use identical shot count/prompt protocol when comparing to reported numbers.",
+      "reported_results": [
+        {
+          "name": "GPT-3 X-Large (few-shot)",
+          "value": 43.9,
+          "unit": "percent",
+          "source_note": "ar5iv text extraction from Table 1",
+          "source_url": "https://ar5iv.labs.arxiv.org/html/2009.03300"
+        }
+      ]
+    },
+    "gsm8k": {
+      "paper": {
+        "title": "Training Verifiers to Solve Math Word Problems",
+        "url": "https://arxiv.org/abs/2110.14168"
+      },
+      "metric": "accuracy",
+      "notes": "Populate paper-aligned baseline numbers from cited table/appendix before any SOTA claim.",
+      "reported_results": []
+    },
+    "bbh": {
+      "paper": {
+        "title": "Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve Them",
+        "url": "https://arxiv.org/abs/2210.09261"
+      },
+      "metric": "average_accuracy",
+      "notes": "Populate comparable model/protocol numbers from paper tables before any SOTA claim.",
+      "reported_results": []
+    }
+  },
+  "claim_rules": {
+    "min_independent_reported_baselines_per_benchmark": 2,
+    "require_non_mock_provider": true,
+    "require_protocol_match_notes": true
+  }
+}

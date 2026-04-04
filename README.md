@@ -69,6 +69,11 @@ conda run -n orpheus python scripts/run_llm_agent_eval.py \
 - `benchmarks/local_reasoning_ood_v1|v2|v3|v4|v5|v6.jsonl`: local IID/OOD debugging ladder (v5/v6 add stronger distractor/noise robustness checks)
 - `configs/llm_agent/`: runner configs
 - `scripts/compare_llm_agent_matrix.py`: cross-benchmark multi-seed comparison vs reference method
+- `scripts/report_component_contributions.py`: ablation-style component contribution deltas
+- `scripts/validate_sota_claim_readiness.py`: SOTA-claim guardrail checker
+- `docs/SYSTEM_COMPONENTS_AND_CONTRIBUTIONS.md`: component map + contribution semantics
+- `docs/SOTA_BASELINE_POLICY.md`: strict claim policy
+- `docs/LITERATURE_BASELINE_REGISTRY.json`: paper-grounded comparator registry
 
 ## Reality Grounding
 
@@ -91,4 +96,5 @@ RL/minigrid/bridge experiments are archived for traceability:
 
 - This pivot is intentionally practical for Mac hardware: evaluate agent logic locally, call hosted models via API for capability.
 - The current `gaia_lite` benchmark is a smoke/on-ramp fixture; it is not intended as a final SOTA claim benchmark.
+- The local `local_reasoning_ood_v*` ladder is for debugging/regression; it is not by itself valid external SOTA evidence.
 - To run local-model benchmarks without API keys, start Ollama first (`ollama serve`) and pull a model (`ollama pull llama3.1:8b`).

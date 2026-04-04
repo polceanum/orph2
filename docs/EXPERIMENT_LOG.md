@@ -2286,3 +2286,52 @@ Decision:
 
 Next Step:
 - Move to more realistic baselines and external benchmarks (non-mock model backends and literature-grounded datasets) for meaningful separation.
+
+## Iteration 11A (Claim Guardrails + Component Contribution Audit)
+
+Question:
+- Can we make component contributions explicit and enforce a hard gate so SOTA wording cannot be used with weak baselines or synthetic-only/mock evidence?
+
+Hypothesis:
+- A contribution reporter + claim-readiness validator will expose where gains come from and prevent overclaiming.
+
+Controls:
+- No model logic changes in this iteration.
+- Operated on existing `v2-v6` artifact set (3 seeds).
+
+Runs:
+- Added component contribution reporter:
+  - `scripts/report_component_contributions.py`
+  - Output:
+    - `artifacts/llm_agent/component_contrib_v2_v6_s012.json`
+    - `artifacts/llm_agent/component_contrib_v2_v6_s012.md`
+- Added SOTA claim validator:
+  - `scripts/validate_sota_claim_readiness.py`
+  - Registry:
+    - `docs/LITERATURE_BASELINE_REGISTRY.json`
+  - Validation run:
+    - `artifacts/llm_agent/sota_claim_readiness_gsm8k_check.json`
+- Added policy/docs:
+  - `docs/SYSTEM_COMPONENTS_AND_CONTRIBUTIONS.md`
+  - `docs/SOTA_BASELINE_POLICY.md`
+  - updated `docs/BENCHMARK_REALITY_PROTOCOL.md`, `docs/LLM_AGENT_DIRECTION.md`, and `README.md`.
+
+Result:
+- Contribution report clarified current local-suite attribution:
+  - `tools_over_adaptive`: strong positive on available v2-v4 runs.
+  - `learned_over_symbolic`: near zero on active local suites.
+- Claim validator correctly returns `fail` for current SOTA readiness on local/mock setup, with concrete reasons:
+  - synthetic local benchmark only
+  - mock provider for all compared methods
+  - insufficient paper-reported comparator baselines populated for target benchmark key
+
+Interpretation:
+- We now have explicit module-level contribution accounting and a machine-checkable claim gate.
+- This directly addresses fairness/correctness risk: it is now harder to accidentally overfit narrative to local synthetic wins.
+
+Decision:
+- Keep validator as required precondition for SOTA wording.
+- Treat current results as internal/regression evidence only.
+
+Next Step:
+- Implement at least one external benchmark adapter with non-mock backend and populate >=2 protocol-matched paper-reported baselines in the registry before any SOTA claims.
