@@ -117,6 +117,39 @@ def _weekday_after(day: str, offset: int) -> str | None:
     return days[(idx + offset) % 7].capitalize()
 
 
+def _sequential_multi_step(text: str) -> str | None:
+    low = text.lower().strip()
+    m_start = re.search(r"(?:start with|start from|start at|begin at|take)\s+(-?\d+)", low)
+    if not m_start:
+        return None
+    val = int(m_start.group(1))
+    start_idx = m_start.end()
+    ops_pat = re.compile(
+        r"(double|triple|add\s+(-?\d+)|subtract\s+(-?\d+)|take away\s+(-?\d+)|multiply by\s+(-?\d+)|times\s+(-?\d+)|multiply.*?\bby\s+(-?\d+))"
+    )
+    seen = False
+    for m in ops_pat.finditer(low[start_idx:]):
+        seen = True
+        tok = m.group(1)
+        if tok == "double":
+            val *= 2
+        elif tok == "triple":
+            val *= 3
+        elif m.group(2) is not None:
+            val += int(m.group(2))
+        elif m.group(3) is not None:
+            val -= int(m.group(3))
+        elif m.group(4) is not None:
+            val -= int(m.group(4))
+        elif m.group(5) is not None:
+            val *= int(m.group(5))
+        elif m.group(6) is not None:
+            val *= int(m.group(6))
+        elif m.group(7) is not None:
+            val *= int(m.group(7))
+    return str(val) if seen else None
+
+
 def _symbolic_solve(question: str) -> str | None:
     q = question.strip()
     low = _normalize_number_words(q.lower())
@@ -221,7 +254,12 @@ def _symbolic_solve(question: str) -> str | None:
             if w:
                 return w
 
-    # 5) scripted two-step transforms
+    # 5) scripted multi-step transforms
+    seq = _sequential_multi_step(low)
+    if seq is not None:
+        return seq
+
+    # Fallback template rules
     # "start with X, double it, then subtract Y"
     m = re.search(r"start with (-?\d+).*(double|triple).*(subtract|add)\s*(-?\d+)", low)
     if m:

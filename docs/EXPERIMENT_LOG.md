@@ -2242,3 +2242,47 @@ Decision:
 
 Next Step:
 - Shift effort to external benchmark adapters with established literature baselines, since further local-suite iterations are unlikely to be informative.
+
+## Iteration 10B (De-Overfit Simplification + Fairness Recheck)
+
+Question:
+- Are our rule sets overfitting via template-specific logic, and can we simplify while preserving fair comparisons?
+
+Hypothesis:
+- Replacing brittle template chains with a generic sequential-operation parser should reduce overfitting risk without hurting local benchmark performance.
+
+Controls:
+- Applied the same simplification principle to both main comparators:
+  - `symbolic_only` path
+  - `learned_program` typed-executor path
+- Re-ran `v2-v6` for both methods across seeds `0,1,2`.
+- Re-ran `OOD > IID` anomaly scan.
+
+Runs:
+- Code updates:
+  - `llm_agent/learned_solver.py`: added `_sequential_multi_step(...)` and used it as primary multi-step executor path.
+  - `llm_agent/agent.py`: added `_sequential_multi_step(...)` and used it in symbolic solver before template fallbacks.
+- Re-evaluated artifacts:
+  - `artifacts/llm_agent/local_reasoning_ood_v{2,3,4,5,6}_mock_symbolic_only_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v{2,3,4,5,6}_learned_program_s{0,1,2}.json`
+- Updated summary:
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_v6_s012_learned_vs_symbolic.json`
+
+Result:
+- No regression after simplification:
+  - `symbolic_only`: `1.00` IID / `1.00` OOD on `v2-v6` (3 seeds).
+  - `learned_program`: `1.00` IID / `1.00` OOD on `v2-v6` (3 seeds).
+- Learned vs symbolic remains exact parity on active local suites.
+- `OOD > IID` anomaly scan remains clean (`0` cases).
+
+Interpretation:
+- The simplified generic parser removes some template-specific brittleness while retaining performance.
+- This improves methodological fairness and reduces overfit risk in the current local ladder.
+- Still, the local suites remain saturated; they are now mostly regression checks, not discriminative benchmarks.
+
+Decision:
+- Keep the simplified sequential-op logic.
+- Keep local suites as sanity/regression tests.
+
+Next Step:
+- Move to more realistic baselines and external benchmarks (non-mock model backends and literature-grounded datasets) for meaningful separation.

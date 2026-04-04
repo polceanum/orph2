@@ -115,6 +115,39 @@ def _duration_minutes_from_text(text: str) -> int | None:
     return t2 - t1
 
 
+def _sequential_multi_step(text: str) -> str | None:
+    low = _norm_text(text)
+    m_start = re.search(r"(?:start with|start from|start at|begin at|take)\s+(-?\d+)", low)
+    if not m_start:
+        return None
+    val = int(m_start.group(1))
+    start_idx = m_start.end()
+    ops_pat = re.compile(
+        r"(double|triple|add\s+(-?\d+)|subtract\s+(-?\d+)|take away\s+(-?\d+)|multiply by\s+(-?\d+)|times\s+(-?\d+)|multiply.*?\bby\s+(-?\d+))"
+    )
+    seen = False
+    for m in ops_pat.finditer(low[start_idx:]):
+        seen = True
+        tok = m.group(1)
+        if tok == "double":
+            val *= 2
+        elif tok == "triple":
+            val *= 3
+        elif m.group(2) is not None:
+            val += int(m.group(2))
+        elif m.group(3) is not None:
+            val -= int(m.group(3))
+        elif m.group(4) is not None:
+            val -= int(m.group(4))
+        elif m.group(5) is not None:
+            val *= int(m.group(5))
+        elif m.group(6) is not None:
+            val *= int(m.group(6))
+        elif m.group(7) is not None:
+            val *= int(m.group(7))
+    return str(val) if seen else None
+
+
 def _weekday_shift(text: str) -> str | None:
     low = _normalize_number_words(_norm_text(text))
     days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -220,6 +253,10 @@ def _compute_answer_by_type(q: str, pred_type: str) -> str | None:
             return str(a - b)
         return str(a + b)
     if pred_type == "multi_step":
+        seq = _sequential_multi_step(low)
+        if seq is not None:
+            return seq
+
         m_sub_triple = re.search(
             r"start from\s+(-?\d+).{0,40}(?:subtract|take away)\s+(-?\d+).{0,40}(?:triple|multiply by 3)",
             low,
