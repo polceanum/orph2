@@ -1,0 +1,24 @@
+seed: 0
+
+benchmark:
+  name: local_reasoning_ood_v3_mock_symbolic_only
+  path: benchmarks/local_reasoning_ood_v3.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: direct
+  self_consistency_k: 1
+  use_verifier: false
+  use_query_rewrite: true
+  use_symbolic_solver: true
+  routing_conf_threshold: 0.67
+  routing_fast_k: 1
+  system_prompt: >
+    You are a careful assistant. Answer with only the final answer.
+
+run:
+  max_tasks: 0

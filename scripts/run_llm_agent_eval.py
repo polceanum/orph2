@@ -87,6 +87,7 @@ def main() -> None:
         routing_conf_threshold=float(_cfg_get(cfg, "agent.routing_conf_threshold", 0.6)),
         routing_fast_k=int(_cfg_get(cfg, "agent.routing_fast_k", 3)),
         use_symbolic_solver=bool(_cfg_get(cfg, "agent.use_symbolic_solver", False)),
+        learned_solver_path=_cfg_get(cfg, "agent.learned_solver_path", None),
     )
     agent = OrchestratedAgent(client=client, cfg=agent_cfg)
 

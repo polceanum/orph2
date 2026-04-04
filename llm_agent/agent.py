@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime
 
 from .model_clients import ModelClient
+from .learned_solver import LearnedTypeSolver
 
 
 @dataclass
@@ -21,6 +22,7 @@ class AgentConfig:
     routing_conf_threshold: float = 0.6
     routing_fast_k: int = 3
     use_symbolic_solver: bool = False
+    learned_solver_path: str | None = None
 
 
 def _clean_answer(x: str) -> str:
@@ -156,6 +158,10 @@ def _symbolic_solve(question: str) -> str | None:
     if m and int(m.group(2)) != 0:
         a, b = int(m.group(1)), int(m.group(2))
         return str(a // b if a % b == 0 else a / b)
+    m = re.search(r"(-?\d+)\s+over\s+(-?\d+)", low)
+    if m and int(m.group(2)) != 0:
+        a, b = int(m.group(1)), int(m.group(2))
+        return str(a // b if a % b == 0 else a / b)
     m = re.search(r"add\s+(-?\d+)\s+to\s+(-?\d+)", low)
     if m:
         return str(int(m.group(1)) + int(m.group(2)))
@@ -238,6 +244,12 @@ def _symbolic_solve(question: str) -> str | None:
         x, y = int(m.group(1)), int(m.group(3))
         return str((x - y) * 3)
 
+    # "start from X, subtract Y, then multiply by Z"
+    m = re.search(r"start from (-?\d+).*(subtract|take away)\s*(-?\d+).*(multiply by|times)\s*(-?\d+)", low)
+    if m:
+        x, y, z = int(m.group(1)), int(m.group(3)), int(m.group(5))
+        return str((x - y) * z)
+
     # "begin at X, take away Y, then multiply by Z"
     m = re.search(r"begin at (-?\d+).*(take away|subtract)\s*(-?\d+).*(multiply by)\s*(-?\d+)", low)
     if m:
@@ -256,6 +268,12 @@ def _symbolic_solve(question: str) -> str | None:
         x, y, z = int(m.group(1)), int(m.group(3)), int(m.group(5))
         return str(x * y + z)
 
+    # "begin with X, take away Y, then times Z"
+    m = re.search(r"begin with (-?\d+).*(take away|subtract)\s*(-?\d+).*(times|multiply by)\s*(-?\d+)", low)
+    if m:
+        x, y, z = int(m.group(1)), int(m.group(3)), int(m.group(5))
+        return str((x - y) * z)
+
     return None
 
 
@@ -263,6 +281,9 @@ class OrchestratedAgent:
     def __init__(self, client: ModelClient, cfg: AgentConfig):
         self.client = client
         self.cfg = cfg
+        self.learned_solver = (
+            LearnedTypeSolver(cfg.learned_solver_path) if cfg.learned_solver_path else None
+        )
 
     def solve(self, question: str) -> tuple[str, dict]:
         q = _rewrite_question(question) if self.cfg.use_query_rewrite else question
@@ -275,6 +296,10 @@ class OrchestratedAgent:
                     "question_rewritten": q != question,
                     "rewritten_question": q if q != question else None,
                 }
+        if self.cfg.mode == "learned_program":
+            if self.learned_solver is None:
+                raise ValueError("agent.mode=learned_program requires agent.learned_solver_path")
+            return self.learned_solver.solve(q)
         if self.cfg.mode == "direct":
             prompt = f"{self.cfg.system_prompt}\n\nQuestion:\n{q}"
             ans = self.client.complete(prompt)

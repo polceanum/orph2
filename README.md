@@ -67,7 +67,9 @@ conda run -n orpheus python scripts/run_llm_agent_eval.py \
 - `llm_agent/`: orchestration, model clients, eval utilities
 - `benchmarks/gaia_lite_v0.jsonl`: minimal local benchmark fixture
 - `benchmarks/local_reasoning_ood_v1|v2|v3.jsonl`: local IID/OOD debugging ladder
+- `benchmarks/local_reasoning_ood_v1|v2|v3|v4.jsonl`: local IID/OOD debugging ladder
 - `configs/llm_agent/`: runner configs
+- `scripts/compare_llm_agent_matrix.py`: cross-benchmark multi-seed comparison vs reference method
 
 ## Reality Grounding
 

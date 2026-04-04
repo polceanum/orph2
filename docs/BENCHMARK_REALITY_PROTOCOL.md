@@ -13,6 +13,7 @@ Demonstrate reproducible OOD gains from orchestration/tooling, not just prompt l
 - `sota_sc_verifier`
 - `adaptive_router`
 - `adaptive_router + tools` (if tools are part of the method)
+- `symbolic_only` when tools are part of the method (to isolate orchestration value from tool value)
 
 2. Split-aware reporting:
 - overall accuracy

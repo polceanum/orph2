@@ -32,6 +32,8 @@ conda run -n orpheus python scripts/run_llm_agent_eval.py \
 - `sota_sc_verifier` baseline (rewrite + SC + verifier)
 - `adaptive_router` baseline
 - `adaptive_router + tools` (if tools enabled)
+- `symbolic_only` baseline when tools are enabled
+- `learned_program` baseline (train on IID, evaluate IID+OOD) when claiming learning-driven gains
 - Same model, same benchmark split, same max task count
 - If using hosted APIs, include provider/model/version metadata in outputs
 

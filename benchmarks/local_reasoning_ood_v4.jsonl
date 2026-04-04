@@ -1,0 +1,24 @@
+{"id":"v4-001","question":"What is 120 divided by 10?","answer":"12","split":"iid","metadata":{"type":"division"}}
+{"id":"v4-002","question":"Which value is lower: -11 or -7?","answer":"-11","split":"iid","metadata":{"type":"comparison_min"}}
+{"id":"v4-003","question":"Compute the distance between 45 and 12.","answer":"33","split":"iid","metadata":{"type":"abs_diff"}}
+{"id":"v4-004","question":"From 09:25 to 11:10, how many minutes pass?","answer":"105","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"v4-005","question":"What day is 2 days before Sunday?","answer":"Friday","split":"iid","metadata":{"type":"weekday_offset"}}
+{"id":"v4-006","question":"Start from 14, subtract 5, then multiply by 4.","answer":"36","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v4-007","question":"Take 3, multiply by 9, then add 8.","answer":"35","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v4-008","question":"Half of 22 plus 9 equals what?","answer":"20","split":"iid","metadata":{"type":"half_plus"}}
+{"id":"v4-009","question":"What is 18 more than 24?","answer":"42","split":"iid","metadata":{"type":"add_phrase"}}
+{"id":"v4-010","question":"Evaluate 7 * 8.","answer":"56","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v4-011","question":"Which is larger: 303 or 330?","answer":"330","split":"iid","metadata":{"type":"comparison_max"}}
+{"id":"v4-012","question":"A show starts at 11:55 PM and ends at 12:25 AM. Duration in minutes?","answer":"30","split":"iid","metadata":{"type":"time_delta_ampm"}}
+{"id":"v4-013","question":"Find 120 over 10.","answer":"12","split":"ood","metadata":{"type":"division"}}
+{"id":"v4-014","question":"Pick the smaller number: -11 or -7.","answer":"-11","split":"ood","metadata":{"type":"comparison_min"}}
+{"id":"v4-015","question":"Absolute difference of 45 and 12?","answer":"33","split":"ood","metadata":{"type":"abs_diff"}}
+{"id":"v4-016","question":"Trip starts at 09:25 and ends at 11:10. Total minutes?","answer":"105","split":"ood","metadata":{"type":"time_delta"}}
+{"id":"v4-017","question":"Which weekday comes two days before Sunday?","answer":"Friday","split":"ood","metadata":{"type":"weekday_offset"}}
+{"id":"v4-018","question":"Begin with 14, take away 5, then times 4.","answer":"36","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v4-019","question":"Start at 3, times 9, then add 8.","answer":"35","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v4-020","question":"Nine added to half of 22 gives?","answer":"20","split":"ood","metadata":{"type":"half_plus"}}
+{"id":"v4-021","question":"Add 18 to 24.","answer":"42","split":"ood","metadata":{"type":"add_phrase"}}
+{"id":"v4-022","question":"Multiply 7 by 8.","answer":"56","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v4-023","question":"Select the greater value: 303 or 330.","answer":"330","split":"ood","metadata":{"type":"comparison_max"}}
+{"id":"v4-024","question":"From 11:55 PM until 12:25 AM, elapsed minutes?","answer":"30","split":"ood","metadata":{"type":"time_delta_ampm"}}
