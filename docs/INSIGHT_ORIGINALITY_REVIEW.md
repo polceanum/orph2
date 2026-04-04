@@ -38,7 +38,8 @@ Current stack is a practical stepping stone, but still mostly "routing + tools +
 ## Scientific Claim Boundaries (Current)
 
 Supported now:
-- Learned method beats our SOTA-style non-tool baseline on v2/v3/v4 under controlled IID->OOD evaluation.
+- Learned method beats our SOTA-style non-tool baseline on v2/v3/v4/v5 under controlled IID->OOD evaluation.
+- Broadening to v5 exposed and then fixed a concrete distractor-robustness bug in operand parsing.
 
 Not supported yet:
 - Claiming overall SOTA against literature benchmarks.

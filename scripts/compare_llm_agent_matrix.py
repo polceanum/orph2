@@ -48,7 +48,7 @@ def main() -> None:
     ap.add_argument(
         "--methods",
         default="direct,sota,adaptive,adaptive_tools",
-        help="comma-separated method keys to include; valid: direct,sota,adaptive,adaptive_tools,symbolic_only",
+        help="comma-separated method keys to include; valid: direct,sota,adaptive,adaptive_tools,symbolic_only,learned_program",
     )
     args = ap.parse_args()
 
