@@ -1794,3 +1794,54 @@ Decision:
 
 Next Step:
 - Rerun full v3 Ollama matrix (seed 0 exploratory), then execute 3-seed pass for preliminary claims.
+
+## Iteration 6E (v3 Mock 3-Seed Baseline Matrix)
+
+Question:
+- Are v3 results stable across seeds under the current code state?
+
+Controls:
+- Benchmark: `benchmarks/local_reasoning_ood_v3.jsonl`
+- Provider: `mock`
+- Seeds: `0,1,2`
+- Methods: `direct`, `sota_sc_verifier`, `adaptive_router`, `adaptive_router + tools`
+
+Runs:
+- direct:
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_direct_s0.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_direct_s1.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_direct_s2.json`
+  - summary: `artifacts/llm_agent/local_reasoning_ood_v3_mock_direct_s012_summary.json`
+- sota_sc_verifier:
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_sota_s0.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_sota_s1.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_sota_s2.json`
+  - summary: `artifacts/llm_agent/local_reasoning_ood_v3_mock_sota_s012_summary.json`
+- adaptive_router:
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_s0.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_s1.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_s2.json`
+  - summary: `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_s012_summary.json`
+- adaptive_router + tools:
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_tools_s0.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_tools_s1.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_tools_s2.json`
+  - summary: `artifacts/llm_agent/local_reasoning_ood_v3_mock_adaptive_tools_s012_summary.json`
+
+Result (3 seeds):
+- direct: mean acc `0.00` (IID `0.00`, OOD `0.00`)
+- sota_sc_verifier: mean acc `0.00` (IID `0.00`, OOD `0.00`)
+- adaptive_router (no tools): mean acc `0.00` (IID `0.00`, OOD `0.00`)
+- adaptive_router + tools: mean acc `1.00` (IID `1.00`, OOD `1.00`)
+- random-chance reference (uniform over unique gold): `0.125`
+
+Interpretation:
+- Under mock behavior, non-tool approaches are consistently below random chance.
+- Tool-enabled approach is stable and perfectly solves v3 after symbolic fixes.
+- This validates framework consistency but still does not establish real-world SOTA relevance without local/hosted real-model replication.
+
+Decision:
+- Keep this as a stable internal regression benchmark.
+
+Next Step:
+- Bring Ollama online and run the same 3-seed v3 matrix on real local LLM inference.
