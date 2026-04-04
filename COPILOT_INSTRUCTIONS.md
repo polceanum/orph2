@@ -34,6 +34,10 @@ This repository is intentionally narrowed to an RL-first OOD adaptation track.
 - Reject variants that degrade either:
   - absolute structured OOD
   - or structured-vs-baseline OOD delta
+- After each experiment batch, update `docs/EXPERIMENT_LOG.md` with:
+  - Question, Hypothesis, Controls, Runs, Result, Interpretation, Decision, Next step.
+- Include failed/null findings in the log to avoid selection bias.
+- Treat 1-seed findings as exploratory; require 3/5 seeds for acceptance/strong claims.
 
 ## Standardization Path
 

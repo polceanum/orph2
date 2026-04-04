@@ -1,5 +1,24 @@
 # Experiment Log
 
+## Research Log Protocol (Required)
+
+For every meaningful change or run, append one entry with:
+- Question
+- Hypothesis
+- Controls (what stayed fixed)
+- Runs (config + output artifact paths)
+- Result (IID/OOD and key deltas)
+- Interpretation (why it likely happened)
+- Decision (`keep`, `reject`, or `needs more evidence`)
+- Next step
+
+Scientific rules:
+- Log negative results and failed ideas (not only wins).
+- Mark 1-seed results as exploratory only.
+- Require 3 seeds for candidate acceptance and 5 seeds for stronger claims.
+- Include random-chance and oracle context when available.
+- If oracle quality gate fails, explicitly mark oracle as underfit and avoid transfer-ratio claims.
+
 ## Iteration 1A
 
 Question:
@@ -546,3 +565,89 @@ Interpretation:
 
 Decision:
 - Proceed to full-budget hard-OOD run with standard baseline included.
+
+## Iteration 2A
+
+Question:
+- Does the stronger long-budget setup with explicit standard actor-critic baseline yield robust 5-seed OOD gains?
+
+Runs:
+- Config: `configs/bridges/bridge_10_mechanism_addition_rl_long20_with_standard_ac.yaml`
+- Output: `artifacts/rl/iter41_long20_with_standard_ac_s0to4_combined.json`
+
+Result (5 seeds):
+- structured OOD: `0.5836`
+- recurrent OOD: `0.2090`
+- standard actor-critic OOD: `0.2106`
+- structured - recurrent OOD: `+0.3745`
+- structured - standard AC OOD: `+0.3730`
+
+Interpretation:
+- Structured is clearly above both baselines at this budget.
+
+Decision:
+- Keep as strong baseline checkpoint for subsequent iterations.
+
+## Iteration 2B
+
+Question:
+- Is oracle training sufficiently strong to serve as a valid transfer-ratio reference?
+
+Runs:
+- Config: `configs/bridges/bridge_10_mechanism_addition_rl_long20_oracle_generated_strong_with_standard_ac.yaml`
+- Output: `artifacts/rl/iter42_oracle_long20_strong_s012.json`
+- Gate summary: `artifacts/rl/summary_iter46_s012_vs_iter42_oracle.json`
+
+Result:
+- Oracle structured OOD: `0.4675` (below primary structured OOD checkpoints)
+- Oracle recurrent OOD: `0.2033`
+- Oracle standard AC OOD: `0.2001`
+
+Interpretation:
+- Oracle appears underfit in this configuration, so it is not a reliable upper-bound reference.
+
+Decision:
+- Mark oracle as underfit; do not rely on transfer-ratio claims from this oracle.
+
+## Iteration 2C
+
+Question:
+- Does longer training (`long24`) further improve OOD beyond `long20`?
+
+Runs:
+- Seed 0: `artifacts/rl/iter43_long24_with_standard_ac_s0.json`
+- Seeds 1,2: `artifacts/rl/iter44_long24_with_standard_ac_s12.json`
+- Seeds 3,4: `artifacts/rl/iter47_long24_with_standard_ac_s34.json`
+- Combined 0..4: `artifacts/rl/iter48_long24_with_standard_ac_s0to4_combined.json`
+- Summary: `artifacts/rl/summary_iter48_s0to4_vs_iter42_oracle.json`
+
+Result (5 seeds, long24):
+- structured OOD: `0.6268`
+- recurrent OOD: `0.2136`
+- standard actor-critic OOD: `0.2078`
+- structured - recurrent OOD: `+0.4132`
+- structured - standard AC OOD: `+0.4191`
+- vs long20 (`iter41`): structured OOD `+0.0433`
+
+Interpretation:
+- Longer budget improved structured OOD materially while baseline OOD remained near `~0.21`.
+- Relative structured advantage increased vs both baselines.
+
+Decision:
+- Keep `long24` as the current primary setting.
+
+## Iteration 2D
+
+Question:
+- Can a stronger oracle on the same long24 regime restore a valid oracle upper bound?
+
+Runs:
+- Generated config: `configs/bridges/bridge_10_mechanism_addition_rl_long24_oracle_generated_strong_with_standard_ac.yaml`
+- In-progress run: `artifacts/rl/iter49_oracle_long24_strong_s012.json`
+- Live log: `artifacts/rl/iter49_oracle_long24_strong_s012.log.jsonl`
+
+Current status:
+- Run started and logging normally; not yet finalized in this log entry.
+
+Decision:
+- Pending completion; update this entry with final metrics and oracle-gate conclusion.

@@ -23,6 +23,10 @@ conda run -n orpheus python scripts/train_rl_compare.py \
 - Use 1 seed for iteration, 3 seeds for conclusions.
 - Use 5 seeds for stronger claims.
 - Include random-chance and oracle context in summary tables.
+- After each meaningful experiment batch, append `docs/EXPERIMENT_LOG.md` with:
+  - Question, Hypothesis, Controls, Runs, Result, Interpretation, Decision, Next step.
+- Log negative/null results explicitly (do not omit failed variants).
+- Mark 1-seed outcomes as exploratory; do not present as conclusions.
 
 ## Required Baselines
 
@@ -46,3 +50,9 @@ conda run -n orpheus python scripts/summarize_rl_results.py \
   --out-json <summary.json> \
   --out-md <summary.md>
 ```
+
+## Research Log Requirement
+
+- `docs/EXPERIMENT_LOG.md` is the canonical research journal.
+- Keep entries chronological and evidence-linked (artifact paths required).
+- If oracle quality gate fails, mark oracle as underfit in the log and avoid transfer-ratio claims.
