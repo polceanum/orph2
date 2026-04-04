@@ -1,0 +1,20 @@
+seed: 0
+
+benchmark:
+  name: local_reasoning_ood_v5_learned_program
+  path: benchmarks/local_reasoning_ood_v5.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: learned_program
+  learned_solver_path: artifacts/llm_agent/learned/v5_iid_type_solver_s0.pt
+  use_query_rewrite: true
+  system_prompt: >
+    You are a careful assistant. Answer with only the final answer.
+
+run:
+  max_tasks: 0

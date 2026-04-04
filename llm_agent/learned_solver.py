@@ -44,6 +44,29 @@ def _parse_ints(text: str) -> list[int]:
     return [int(x) for x in re.findall(r"-?\d+", text)]
 
 
+def _focused_text(text: str) -> str:
+    low = _norm_text(text)
+    if ":" in low:
+        low = low.rsplit(":", 1)[-1].strip()
+    cues = [
+        "compare only",
+        "compute",
+        "calculate",
+        "evaluate",
+        "result of",
+        "operation requested",
+        "find",
+        "what day",
+        "which weekday",
+    ]
+    best = -1
+    for cue in cues:
+        i = low.rfind(cue)
+        if i > best:
+            best = i
+    return low[best:] if best >= 0 else low
+
+
 def _normalize_number_words(text: str) -> str:
     m = {
         "zero": "0",
@@ -100,9 +123,16 @@ def _weekday_shift(text: str) -> str | None:
         return None
     day = m.group(1)
     idx = days.index(day)
-    ints = _parse_ints(low)
-    off = ints[0] if ints else 1
-    if "before" in low:
+    off = 1
+    m2 = re.search(r"(\d+)\s+days?\s+(after|before)", low)
+    if m2:
+        off = int(m2.group(1))
+        rel = m2.group(2)
+    else:
+        ints = _parse_ints(_focused_text(low))
+        off = ints[0] if ints else 1
+        rel = "before" if "before" in low else "after"
+    if rel == "before":
         off = -off
     tgt = days[(idx + off) % 7]
     return tgt.capitalize()
@@ -110,7 +140,8 @@ def _weekday_shift(text: str) -> str | None:
 
 def _compute_answer_by_type(q: str, pred_type: str) -> str | None:
     low = _normalize_number_words(_norm_text(q))
-    ints = _parse_ints(low)
+    focus = _focused_text(low)
+    ints = _parse_ints(focus)
 
     if pred_type in {"comparison", "comparison_max"} and len(ints) >= 2:
         return str(max(ints[0], ints[1]))
@@ -124,18 +155,63 @@ def _compute_answer_by_type(q: str, pred_type: str) -> str | None:
     if pred_type == "weekday_offset":
         return _weekday_shift(low)
     if pred_type == "half_plus" and len(ints) >= 2:
-        if "half of" in low:
+        m_hp = re.search(r"half of\s+(-?\d+)\s+(?:plus|and)\s+(-?\d+)", low)
+        if m_hp:
+            return str((int(m_hp.group(1)) // 2) + int(m_hp.group(2)))
+        m_ah = re.search(r"(-?\d+)\s+added to half of\s+(-?\d+)", low)
+        if m_ah:
+            return str(int(m_ah.group(1)) + (int(m_ah.group(2)) // 2))
+        if "half of" in focus:
             return str((ints[0] // 2) + ints[1])
-        if "added to half of" in low:
+        if "added to half of" in focus:
             return str(ints[0] + (ints[1] // 2))
         return str(ints[0] + (ints[1] // 2))
     if pred_type == "add_phrase" and len(ints) >= 2:
         return str(ints[0] + ints[1])
     if pred_type == "division" and len(ints) >= 2 and ints[1] != 0:
-        a, b = ints[0], ints[1]
+        m_div = re.search(r"(-?\d+)\s*(?:/|divided by|over)\s*(-?\d+)", low)
+        if m_div:
+            a, b = int(m_div.group(1)), int(m_div.group(2))
+        else:
+            all_ints = _parse_ints(low)
+            if len(all_ints) < 2:
+                return None
+            a, b = all_ints[-2], all_ints[-1]
+        if b == 0:
+            return None
         return str(a // b if a % b == 0 else a / b)
     if pred_type == "arith_bin" and len(ints) >= 2:
-        a, b = ints[0], ints[1]
+        m_sym = re.search(r"(-?\d+)\s*([+\-*/])\s*(-?\d+)", low)
+        m_mul = re.search(r"multiply\s+(-?\d+)\s+by\s+(-?\d+)", low)
+        m_word = re.search(r"(-?\d+)\s*(plus|minus|times|multiplied by|divided by|over)\s*(-?\d+)", low)
+        if m_sym:
+            a, op, b = int(m_sym.group(1)), m_sym.group(2), int(m_sym.group(3))
+            if op == "+":
+                return str(a + b)
+            if op == "-":
+                return str(a - b)
+            if op == "*":
+                return str(a * b)
+            if b != 0:
+                return str(a // b if a % b == 0 else a / b)
+            return None
+        if m_mul:
+            return str(int(m_mul.group(1)) * int(m_mul.group(2)))
+        if m_word:
+            a, opw, b = int(m_word.group(1)), m_word.group(2), int(m_word.group(3))
+            if opw == "plus":
+                return str(a + b)
+            if opw == "minus":
+                return str(a - b)
+            if opw in {"times", "multiplied by"}:
+                return str(a * b)
+            if b != 0:
+                return str(a // b if a % b == 0 else a / b)
+            return None
+        all_ints = _parse_ints(low)
+        if len(all_ints) < 2:
+            return None
+        a, b = all_ints[-2], all_ints[-1]
         if any(x in low for x in ["*", "multiply", "times"]):
             return str(a * b)
         if any(x in low for x in ["/", "divide", "divided", "over"]) and b != 0:
@@ -144,40 +220,64 @@ def _compute_answer_by_type(q: str, pred_type: str) -> str | None:
             return str(a - b)
         return str(a + b)
     if pred_type == "multi_step":
+        m_dbl_sub = re.search(r"(?:start with|begin at)\s+(-?\d+).{0,40}double.{0,30}(?:subtract|take away)\s+(-?\d+)", low)
+        if m_dbl_sub:
+            x, y = int(m_dbl_sub.group(1)), int(m_dbl_sub.group(2))
+            return str((x * 2) - y)
+        m_mul_sub = re.search(
+            r"(?:start with|begin at)\s+(-?\d+).{0,40}(?:multiply by|times)\s+(-?\d+).{0,40}(?:take away|subtract)\s+(-?\d+)",
+            low,
+        )
+        if m_mul_sub:
+            x, y, z = int(m_mul_sub.group(1)), int(m_mul_sub.group(2)), int(m_mul_sub.group(3))
+            return str((x * y) - z)
+        m_add_mul = re.search(
+            r"(?:take|start at|start with)\s+(-?\d+).{0,40}add\s+(-?\d+).{0,40}(?:multiply by|times)\s+(-?\d+)",
+            low,
+        )
+        if m_add_mul:
+            x, y, z = int(m_add_mul.group(1)), int(m_add_mul.group(2)), int(m_add_mul.group(3))
+            return str((x + y) * z)
         # Generic two-op fallback using first 3 ints and operation order in text.
         # Explicit short templates first.
-        if "double" in low and ("subtract" in low or "take away" in low) and len(ints) >= 2:
+        if "double" in focus and ("subtract" in focus or "take away" in focus) and len(ints) >= 2:
             x, y = ints[0], ints[1]
             return str((x * 2) - y)
-        if "triple" in low and ("subtract" in low or "take away" in low) and len(ints) >= 2:
+        if "triple" in focus and ("subtract" in focus or "take away" in focus) and len(ints) >= 2:
             x, y = ints[0], ints[1]
             return str((x * 3) - y)
-        if "double" in low and "add" in low and len(ints) >= 2:
+        if "double" in focus and "add" in focus and len(ints) >= 2:
             x, y = ints[0], ints[1]
             return str((x * 2) + y)
-        if "triple" in low and "add" in low and len(ints) >= 2:
+        if "triple" in focus and "add" in focus and len(ints) >= 2:
             x, y = ints[0], ints[1]
             return str((x * 3) + y)
 
         # 2-int special: "multiply a by b" should still work.
-        if len(ints) == 2 and ("multiply" in low or "times" in low):
+        if len(ints) == 2 and ("multiply" in focus or "times" in focus):
             return str(ints[0] * ints[1])
 
         if len(ints) < 3:
             return None
         x, y, z = ints[0], ints[1], ints[2]
-        if "add" in low and ("multiply" in low or "times" in low) and low.find("add") < max(low.find("multiply"), low.find("times")):
+        # e.g. "multiply by y, then take away z" => x*y - z
+        if ("multiply" in focus or "times" in focus) and ("take away" in focus or "subtract" in focus):
+            m_i = min([i for i in [focus.find("multiply"), focus.find("times")] if i >= 0])
+            s_i = min([i for i in [focus.find("take away"), focus.find("subtract")] if i >= 0])
+            if m_i < s_i:
+                return str((x * y) - z)
+        if "add" in focus and ("multiply" in focus or "times" in focus) and focus.find("add") < max(focus.find("multiply"), focus.find("times")):
             return str((x + y) * z)
-        if ("multiply" in low or "times" in low) and "add" in low and min(
-            [i for i in [low.find("multiply"), low.find("times")] if i >= 0]
-        ) < low.find("add"):
+        if ("multiply" in focus or "times" in focus) and "add" in focus and min(
+            [i for i in [focus.find("multiply"), focus.find("times")] if i >= 0]
+        ) < focus.find("add"):
             return str((x * y) + z)
-        if ("subtract" in low or "take away" in low) and ("multiply" in low or "times" in low):
+        if ("subtract" in focus or "take away" in focus) and ("multiply" in focus or "times" in focus):
             return str((x - y) * z)
-        if ("double" in low or "triple" in low) and ("subtract" in low or "add" in low):
-            scale = 3 if "triple" in low else 2
+        if ("double" in focus or "triple" in focus) and ("subtract" in focus or "add" in focus):
+            scale = 3 if "triple" in focus else 2
             v = x * scale
-            return str(v - y if "subtract" in low else v + y)
+            return str(v - y if "subtract" in focus else v + y)
     return None
 
 

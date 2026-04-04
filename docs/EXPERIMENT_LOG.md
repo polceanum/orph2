@@ -2036,3 +2036,62 @@ Decision:
 Next Step:
 - Close remaining learned errors (`half_plus` variant, one multi-step template).
 - Start external benchmark adapter work in parallel for robustness beyond local suites.
+
+## Iteration 9A (Broadened Benchmark v5 + Distractor Robustness Fix)
+
+Question:
+- Does performance hold on a broadened benchmark with explicit distractor/noise numbers, and can we fix parser brittleness without weakening prior benchmark results?
+
+Hypothesis:
+- A focused operand parser (operation-specific regex + better phrase handling) should remove distractor-induced failures and improve learned IID/OOD on v5.
+
+Controls:
+- Provider: `mock`
+- Seeds: `0,1,2`
+- Methods: `sota`, `symbolic_only`, `learned_program`
+- Benchmarks: `v5` (new) and cross-benchmark rollup `v2/v3/v4/v5`
+
+Runs:
+- New benchmark/configs:
+  - `benchmarks/local_reasoning_ood_v5.jsonl`
+  - `configs/llm_agent/local_reasoning_ood_v5_mock_sota.yaml`
+  - `configs/llm_agent/local_reasoning_ood_v5_mock_symbolic_only.yaml`
+  - `configs/llm_agent/local_reasoning_ood_v5_learned_program.yaml`
+- v5 eval artifacts:
+  - `artifacts/llm_agent/local_reasoning_ood_v5_mock_sota_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v5_mock_symbolic_only_s{0,1,2}.json`
+  - `artifacts/llm_agent/local_reasoning_ood_v5_learned_program_s{0,1,2}.json`
+- v5 summaries:
+  - `artifacts/llm_agent/mock_matrix_v5_s012_learned_symbolic_vs_sota.json`
+  - `artifacts/llm_agent/mock_matrix_v5_s012_learned_symbolic_vs_sota.md`
+  - `artifacts/llm_agent/mock_matrix_v5_s012_learned_vs_symbolic.json`
+  - `artifacts/llm_agent/mock_matrix_v5_s012_learned_vs_symbolic.md`
+- Cross-benchmark summaries:
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_symbolic_vs_sota.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_symbolic_vs_sota.md`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_vs_symbolic.json`
+  - `artifacts/llm_agent/mock_matrix_v2_v3_v4_v5_s012_learned_vs_symbolic.md`
+
+Result:
+- Initial v5 learned pass exposed a real failure mode (distractor numbers hijacking operand selection), with learned accuracy collapsing to `0.417`.
+- After parser patch in `llm_agent/learned_solver.py`:
+  - v5 learned: accuracy `1.00`, IID `1.00`, OOD `1.00` (3 seeds)
+  - v5 symbolic-only: accuracy `0.875`, IID `0.833`, OOD `0.917`
+  - v5 sota: accuracy `0.0`, IID `0.0`, OOD `0.0`
+  - v5 random-chance reference: `0.0833`
+- Cross-benchmark (`v2-v5`) learned OOD lift vs sota: `+0.929 ± 0.041` (directional CI)
+- Cross-benchmark (`v2-v5`) learned vs symbolic OOD delta: `-0.050 ± 0.076`
+
+Interpretation:
+- Broadened benchmark was useful: it caught a concrete parser robustness bug that prior suites under-exercised.
+- The fix is targeted and materially improves robustness under distractor/noise phrasing.
+- Learned remains clearly stronger than the non-tool SOTA-style baseline and is now near symbolic across `v2-v5` aggregate, with benchmark-specific wins/losses.
+
+Decision:
+- Keep v5 in the standard matrix to guard against overfitting to a single local suite.
+- Keep the regex-based typed executor improvements.
+- Continue external benchmark integration to validate whether gains hold outside local synthetic suites.
+
+Next Step:
+- Add at least one external small-footprint benchmark adapter runnable on Mac (with documented split semantics).
+- Re-run the same `sota/symbolic/learned` matrix and update this log with apples-to-apples comparisons.

@@ -1,0 +1,24 @@
+{"id":"v5-001","question":"Ignore the note about 3 and 7. Compute 14 + 9.","answer":"23","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v5-002","question":"A poster says 100 and 4, but for this question calculate 81 minus 14.","answer":"67","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v5-003","question":"In a list [5, 88, 12], compare only 128 and 97. Which is larger?","answer":"128","split":"iid","metadata":{"type":"comparison_max"}}
+{"id":"v5-004","question":"Ignore route code 55. A trip starts at 08:40 and ends at 10:05. Minutes?","answer":"85","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"v5-005","question":"Calendar note says 9 days to event; still answer: what day is 3 days after Monday?","answer":"Thursday","split":"iid","metadata":{"type":"weekday_offset"}}
+{"id":"v5-006","question":"Start with 7, double it, then subtract 3. (Ignore side number 99.)","answer":"11","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v5-007","question":"Take 5, add 4, then multiply by 3. Disregard the number 42 in this sentence.","answer":"27","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v5-008","question":"A hint shows 2 and 2, but the operation requested is 13 * 6.","answer":"78","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v5-009","question":"Select the greater number between 1001 and 1100; ignore 77.","answer":"1100","split":"iid","metadata":{"type":"comparison_max"}}
+{"id":"v5-010","question":"Train A code is 301. From 22:10 to 00:05, how many minutes elapse?","answer":"115","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"v5-011","question":"Billboard numbers 8 and 1 are unrelated. Find 120 over 10.","answer":"12","split":"iid","metadata":{"type":"division"}}
+{"id":"v5-012","question":"You may see 50 in text; still compute: half of 22 plus 9.","answer":"20","split":"iid","metadata":{"type":"half_plus"}}
+{"id":"v5-013","question":"Ignore ages 3 and 7. What is the result of 14 plus 9?","answer":"23","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v5-014","question":"Do not use 100 or 4; evaluate 81 minus 14.","answer":"67","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v5-015","question":"Only compare 128 or 97 (the list values 5, 88, 12 are noise). Pick the bigger one.","answer":"128","split":"ood","metadata":{"type":"comparison_max"}}
+{"id":"v5-016","question":"Route code 55 is irrelevant. Journey from 08:40 until 10:05: total minutes?","answer":"85","split":"ood","metadata":{"type":"time_delta"}}
+{"id":"v5-017","question":"Even if a note says 9, which weekday comes three days after Monday?","answer":"Thursday","split":"ood","metadata":{"type":"weekday_offset"}}
+{"id":"v5-018","question":"Begin at 7, multiply by 2, then take away 3. Ignore 99.","answer":"11","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v5-019","question":"Start at 5, add 4, and then multiply by 3; ignore 42.","answer":"27","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v5-020","question":"The numbers 2 and 2 are a decoy. Multiply 13 by 6.","answer":"78","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v5-021","question":"Pick the greater value: 1001 or 1100 (77 is unrelated).","answer":"1100","split":"ood","metadata":{"type":"comparison_max"}}
+{"id":"v5-022","question":"Train code 301 is irrelevant. From 22:10 until 00:05, elapsed minutes?","answer":"115","split":"ood","metadata":{"type":"time_delta"}}
+{"id":"v5-023","question":"The side numbers 8 and 1 are noise. Compute 120 divided by 10.","answer":"12","split":"ood","metadata":{"type":"division"}}
+{"id":"v5-024","question":"Value 50 is unrelated. Nine added to half of 22 gives what?","answer":"20","split":"ood","metadata":{"type":"half_plus"}}
