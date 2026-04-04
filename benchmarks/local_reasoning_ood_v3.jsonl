@@ -1,0 +1,20 @@
+{"id":"v3-001","question":"What is 144 / 12?","answer":"12","split":"iid","metadata":{"type":"division"}}
+{"id":"v3-002","question":"Which number is smaller: -3 or 2?","answer":"-3","split":"iid","metadata":{"type":"comparison_min"}}
+{"id":"v3-003","question":"What is the absolute difference between 19 and 7?","answer":"12","split":"iid","metadata":{"type":"abs_diff"}}
+{"id":"v3-004","question":"If an event starts at 11:50 PM and ends at 12:20 AM, duration in minutes?","answer":"30","split":"iid","metadata":{"type":"time_delta_ampm"}}
+{"id":"v3-005","question":"What day is 3 days before Friday?","answer":"Tuesday","split":"iid","metadata":{"type":"weekday_offset"}}
+{"id":"v3-006","question":"Start from 9, subtract 2, then triple the result. Final value?","answer":"21","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v3-007","question":"Take 4, multiply by 5, then add 6. Final value?","answer":"26","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v3-008","question":"Half of 18 plus 7 equals what?","answer":"16","split":"iid","metadata":{"type":"half_plus"}}
+{"id":"v3-009","question":"Compute 96 divided by 8.","answer":"12","split":"iid","metadata":{"type":"division"}}
+{"id":"v3-010","question":"What is 15 more than 27?","answer":"42","split":"iid","metadata":{"type":"add_phrase"}}
+{"id":"v3-011","question":"Evaluate 144 divided by 12.","answer":"12","split":"ood","metadata":{"type":"division"}}
+{"id":"v3-012","question":"Pick the lower value: -3 or 2.","answer":"-3","split":"ood","metadata":{"type":"comparison_min"}}
+{"id":"v3-013","question":"Distance between 19 and 7 on the number line?","answer":"12","split":"ood","metadata":{"type":"abs_diff"}}
+{"id":"v3-014","question":"From 11:50 PM until 12:20 AM, how many minutes pass?","answer":"30","split":"ood","metadata":{"type":"time_delta_ampm"}}
+{"id":"v3-015","question":"Which weekday comes three days before Friday?","answer":"Tuesday","split":"ood","metadata":{"type":"weekday_offset"}}
+{"id":"v3-016","question":"Begin at 9, take away 2, then multiply by 3.","answer":"21","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v3-017","question":"Start at 4, times 5, then add 6.","answer":"26","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v3-018","question":"Seven added to half of 18 gives?","answer":"16","split":"ood","metadata":{"type":"half_plus"}}
+{"id":"v3-019","question":"Divide 96 by 8.","answer":"12","split":"ood","metadata":{"type":"division"}}
+{"id":"v3-020","question":"Add 15 to 27.","answer":"42","split":"ood","metadata":{"type":"add_phrase"}}

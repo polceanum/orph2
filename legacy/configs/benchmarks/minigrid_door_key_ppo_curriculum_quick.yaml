@@ -3,6 +3,7 @@ seed: 0
 benchmark:
   name: minigrid_door_key_ppo_curriculum_quick
   observation_mode: full
+  allow_ood_shape_leakage_for_padding: true
   minigrid:
     iid_env_ids:
       - MiniGrid-DoorKey-5x5-v0

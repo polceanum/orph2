@@ -1,0 +1,25 @@
+seed: 0
+
+benchmark:
+  name: local_reasoning_ood_v3_mock_sota
+  path: benchmarks/local_reasoning_ood_v3.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: sota_sc_verifier
+  self_consistency_k: 7
+  use_verifier: true
+  use_query_rewrite: true
+  use_symbolic_solver: false
+  routing_conf_threshold: 0.67
+  routing_fast_k: 3
+  system_prompt: >
+    You are a careful assistant. Reason step by step internally.
+    Answer with only the final answer.
+
+run:
+  max_tasks: 0

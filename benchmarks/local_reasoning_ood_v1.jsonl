@@ -1,0 +1,11 @@
+{"id":"lr-001","question":"What is 2+2?","answer":"4","split":"iid","metadata":{"type":"math_add"}}
+{"id":"lr-002","question":"What is the capital of France?","answer":"Paris","split":"iid","metadata":{"type":"fact_capital"}}
+{"id":"lr-003","question":"If a train leaves at 09:00 and arrives at 10:30, how many minutes is the trip?","answer":"90","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"lr-004","question":"Which number is larger: 19 or 91?","answer":"91","split":"iid","metadata":{"type":"comparison"}}
+{"id":"lr-005","question":"What day comes after Monday?","answer":"Tuesday","split":"iid","metadata":{"type":"weekday"}}
+{"id":"lr-006","question":"Compute 2 + 2.","answer":"4","split":"ood","metadata":{"type":"math_add"}}
+{"id":"lr-007","question":"Name France's capital city.","answer":"Paris","split":"ood","metadata":{"type":"fact_capital"}}
+{"id":"lr-008","question":"A trip starts at 09:00 and ends at 10:30. Duration in minutes?","answer":"90","split":"ood","metadata":{"type":"time_delta"}}
+{"id":"lr-009","question":"Pick the bigger number: 19 or 91.","answer":"91","split":"ood","metadata":{"type":"comparison"}}
+{"id":"lr-010","question":"Which weekday follows Monday?","answer":"Tuesday","split":"ood","metadata":{"type":"weekday"}}
+

@@ -2,30 +2,28 @@
 
 ## Thesis
 
-OOD adaptation improves when the agent explicitly manages competing hypotheses and updates beliefs through active probing, compared with a classical single-latent recurrent RL policy.
+For 2026-relevant progress, OOD robustness should be tested on **LLM-agent tasks** (tool use, planning, execution reliability), not only synthetic RL environments.
 
 ## Protocol
 
-- Train on IID distribution (`env`).
-- Evaluate on IID (`eval.id`) and OOD (`eval.ood`).
-- Compare:
-  - `structured`
-  - `recurrent_rl`
+- Use benchmark-defined task sets with explicit train/dev/test or public/eval splits.
+- Evaluate at least one orchestrated agent policy:
+  - `direct` (single-pass answer)
+  - `plan_then_solve` (two-stage orchestration)
+- Keep model and budget controlled across compared methods.
 
 ## Required reporting
 
-- IID seq accuracy
-- OOD seq accuracy
-- Delta (`structured - recurrent_rl`) on IID and OOD
-- Multi-seed mean/std
+- Accuracy or pass@1 on the selected split
+- Per-task predictions/traces
+- Multi-seed mean/std where stochasticity is involved
+- Cost/runtime context when available
 
-## Current benchmark
+## Benchmark Direction
 
-Bridge-10 mechanism-addition split:
+- Near-term local/on-ramp: `gaia_lite_v0` fixture
+- Target modern external benchmarks: SWE-bench Pro, GAIA/Gaia2, WebArena/VisualWebArena/WorkArena
 
-- Train mechanisms: `[0, 2]`
-- OOD mechanisms: `[0, 1, 2]`
+## Legacy
 
-## Next step
-
-Port the same protocol to at least one literature benchmark family (Procgen, Meta-World, or MiniGrid/BabyAI).
+Previous RL-first bridge/minigrid track is preserved under `legacy/` for reproducibility and historical comparison.

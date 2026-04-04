@@ -1,85 +1,93 @@
-# OOD Solver (RL-First)
+# OOD Solver (LLM-Agent Pivot)
 
-This repository is now a minimal RL-first codebase for testing structured OOD adaptation.
+This repository now focuses on **LLM-agent orchestration and evaluation** for modern OOD-relevant benchmarks, with a Mac-friendly API-first workflow.
 
-## Goal
+Legacy RL-first experiments are preserved under `legacy/`.
 
-Train and compare:
+## Active Goal
 
-- `structured` RL controller (approaches + rules + probe policy + belief updates)
-- `recurrent_rl` baseline (single-latent recurrent policy)
+Build and evaluate orchestrated LLM agents (planning + solving loops) with explicit, reproducible benchmark reporting.
 
-under explicit IID vs OOD splits.
+## Quick Start
 
-## Definitions
-
-- `IID`: same distribution as training.
-- `OOD`: explicit shift defined in `eval.ood` (for bridge-10 this adds an unseen mechanism).
-- `oracle`: same model class trained directly on target OOD split (reference upper bound).
-
-## Run
-
-Quick smoke:
+Run local mock evaluation (no external API required):
 
 ```bash
-conda run -n orpheus python scripts/train_rl_compare.py \
-  --config configs/bridges/bridge_10_mechanism_addition_rl_quick.yaml \
-  --seeds 0 \
-  --out artifacts/rl/bridge10_rl_quick_s0.json \
-  --log-jsonl artifacts/rl/bridge10_rl_quick_s0.log.jsonl
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/gaia_lite_mock.yaml \
+  --out artifacts/llm_agent/gaia_lite_mock_s0.json
 ```
 
-Main run:
+Run local OOD-style benchmark (mock, no keys):
 
 ```bash
-conda run -n orpheus python scripts/train_rl_compare.py \
-  --config configs/bridges/bridge_10_mechanism_addition_rl.yaml \
-  --seeds 0,1,2 \
-  --out artifacts/rl/bridge10_rl_full_s012.json \
-  --log-jsonl artifacts/rl/bridge10_rl_full_s012.log.jsonl
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/local_reasoning_ood_mock.yaml \
+  --out artifacts/llm_agent/local_reasoning_ood_mock_s0.json
 ```
 
-Live monitor:
+Run SOTA-style local inference stack (rewrite + self-consistency + verifier):
 
 ```bash
-tail -f artifacts/rl/bridge10_rl_full_s012_seed0.log.jsonl
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/local_reasoning_ood_mock_sota.yaml \
+  --out artifacts/llm_agent/local_reasoning_ood_mock_sota_s0.json
 ```
 
-## Current active files
-
-- `scripts/train_rl_compare.py`
-- `configs/bridges/bridge_10_mechanism_addition_rl.yaml`
-- `configs/bridges/bridge_10_mechanism_addition_rl_quick.yaml`
-- `docs/RL_DIRECTION.md`
-
-## Environment
-
-Use the `orpheus` conda environment (custom macOS PyTorch build).
-
-## Benchmark On-Ramp (Minigrid, Mac-Friendly)
-
-Install optional benchmark deps:
+Run adaptive router (cheap pass + uncertainty-triggered escalation):
 
 ```bash
-conda run -n orpheus python -m pip install -r requirements-benchmarks.txt
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/local_reasoning_ood_mock_adaptive.yaml \
+  --out artifacts/llm_agent/local_reasoning_ood_mock_adaptive_s0.json
 ```
 
-Run Minigrid IID/OOD smoke evaluation (random policy):
+Optional local model backend (Ollama, no API keys):
 
 ```bash
-conda run -n orpheus python scripts/benchmarks/minigrid_smoke_eval.py \
-  --config configs/benchmarks/minigrid_door_key_smoke.yaml \
-  --out artifacts/benchmarks/minigrid_smoke_random_s0.json
+ollama serve
+ollama pull llama3.1:8b
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/local_reasoning_ood_ollama.yaml \
+  --out artifacts/llm_agent/local_reasoning_ood_ollama_s0.json
 ```
 
-Benchmark roadmap and scientific protocol:
-- `docs/BENCHMARK_PLAN.md`
-
-Run standardized PPO baseline (first non-trivial Minigrid OOD tier):
+Run OpenAI-backed evaluation (requires `OPENAI_API_KEY`):
 
 ```bash
-conda run -n orpheus python scripts/benchmarks/minigrid_sb3_ppo.py \
-  --config configs/benchmarks/minigrid_empty_random_ppo_quick.yaml \
-  --seed 0 \
-  --out artifacts/benchmarks/minigrid_empty_random_ppo_quick_s0.json
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/gaia_lite_openai.yaml \
+  --out artifacts/llm_agent/gaia_lite_openai_s0.json
 ```
+
+## Active Structure
+
+- `scripts/run_llm_agent_eval.py`: benchmark runner
+- `scripts/summarize_llm_agent_results.py`: result aggregator with random-chance/oracle reference fields
+- `llm_agent/`: orchestration, model clients, eval utilities
+- `benchmarks/gaia_lite_v0.jsonl`: minimal local benchmark fixture
+- `benchmarks/local_reasoning_ood_v1|v2|v3.jsonl`: local IID/OOD debugging ladder
+- `configs/llm_agent/`: runner configs
+
+## Reality Grounding
+
+Use `docs/BENCHMARK_REALITY_PROTOCOL.md` as the scientific guardrail for claims:
+- always include controlled baselines
+- always report IID/OOD split metrics
+- include random-chance and oracle/reference context
+- do not treat 1-seed outcomes as conclusions
+
+## Legacy Track
+
+RL/minigrid/bridge experiments are archived for traceability:
+
+- `legacy/scripts/`
+- `legacy/configs/`
+- `legacy/packages/ood_solver/`
+- `legacy/docs/`
+
+## Notes
+
+- This pivot is intentionally practical for Mac hardware: evaluate agent logic locally, call hosted models via API for capability.
+- The current `gaia_lite` benchmark is a smoke/on-ramp fixture; it is not intended as a final SOTA claim benchmark.
+- To run local-model benchmarks without API keys, start Ollama first (`ollama serve`) and pull a model (`ollama pull llama3.1:8b`).

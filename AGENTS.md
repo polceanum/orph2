@@ -2,57 +2,48 @@
 
 ## Mission
 
-Optimize OOD adaptation in the RL-first structured-vs-recurrent comparison.
+Optimize LLM-agent OOD performance with reproducible, benchmark-driven evaluation on Mac-friendly infrastructure.
 
 ## Canonical command
 
 ```bash
-conda run -n orpheus python scripts/train_rl_compare.py \
-  --config configs/bridges/bridge_10_mechanism_addition_rl.yaml \
-  --seeds 0,1,2 \
-  --out artifacts/rl/bridge10_rl_full_s012.json \
-  --log-jsonl artifacts/rl/bridge10_rl_full_s012.log.jsonl
+conda run -n orpheus python scripts/run_llm_agent_eval.py \
+  --config configs/llm_agent/gaia_lite_mock.yaml \
+  --out artifacts/llm_agent/gaia_lite_mock_s0.json
 ```
 
 ## Rules
 
-- Always report IID and OOD metrics.
-- Always report structured-minus-recurrent deltas.
-- Always report structured-minus-standard-actor-critic deltas when enabled.
-- Use `--log-jsonl` for long runs and monitor live.
-- Use 1 seed for iteration, 3 seeds for conclusions.
-- Use 5 seeds for stronger claims.
-- Include random-chance and oracle context in summary tables.
-- After each meaningful experiment batch, append `docs/EXPERIMENT_LOG.md` with:
+- Keep active work in `llm_agent/`, `scripts/run_llm_agent_eval.py`, `configs/llm_agent/`, and `benchmarks/`.
+- Treat `legacy/` as archived: no new feature development there.
+- Always log experiment batches in `docs/EXPERIMENT_LOG.md`:
   - Question, Hypothesis, Controls, Runs, Result, Interpretation, Decision, Next step.
-- Log negative/null results explicitly (do not omit failed variants).
-- Mark 1-seed outcomes as exploratory; do not present as conclusions.
+- Log negative/null findings explicitly.
+- Use 1 seed for fast iteration, 3+ seeds for claims.
+- Use 5 seeds for stronger claims when compute allows.
+- Keep benchmark/model budgets comparable when comparing agent policies.
+- Always report IID and OOD separately when benchmark includes both splits.
+- Always include random-chance context in summary tables.
+- Include oracle/reference context when available (same task family, target-split access allowed).
 
-## Required Baselines
+## Required Comparisons (LLM track)
 
-- `recurrent_rl` baseline
-- `standard_actor_critic` baseline (mainstream comparator)
-- random chance reference
-- oracle reference (trained on target OOD split)
-
-## Oracle Quality Gate
-
-- Generate oracle config from primary with `scripts/make_oracle_config.py`.
-- Validate oracle quality with `scripts/validate_oracle_quality.py`.
-- If oracle does not beat primary by minimum margin, mark oracle as underfit and do not use transfer-ratio claims.
-
-## Reporting Command (Summary)
-
-```bash
-conda run -n orpheus python scripts/summarize_rl_results.py \
-  --primary <result.json> \
-  --oracle <oracle_result.json> \
-  --out-json <summary.json> \
-  --out-md <summary.md>
-```
+- `direct` baseline
+- `sota_sc_verifier` baseline (rewrite + SC + verifier)
+- `adaptive_router` baseline
+- `adaptive_router + tools` (if tools enabled)
+- Same model, same benchmark split, same max task count
+- If using hosted APIs, include provider/model/version metadata in outputs
 
 ## Research Log Requirement
 
-- `docs/EXPERIMENT_LOG.md` is the canonical research journal.
-- Keep entries chronological and evidence-linked (artifact paths required).
-- If oracle quality gate fails, mark oracle as underfit in the log and avoid transfer-ratio claims.
+- `docs/EXPERIMENT_LOG.md` remains the canonical journal.
+- Include artifact paths for every claim.
+- Mark 1-seed results as exploratory.
+
+## Definitions (LLM track)
+
+- IID: same template family and operator distribution as development set.
+- OOD: paraphrase/format/operator-composition shift with same answer space.
+- Random chance: uniform over unique gold answers in evaluated split.
+- Oracle/reference: evaluation using privileged target-split adaptation/data access; do not compare transfer ratios if oracle underperforms expected ceiling.

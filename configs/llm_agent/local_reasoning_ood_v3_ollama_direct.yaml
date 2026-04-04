@@ -1,0 +1,26 @@
+seed: 0
+
+benchmark:
+  name: local_reasoning_ood_v3_ollama_direct
+  path: benchmarks/local_reasoning_ood_v3.jsonl
+  split:
+
+model:
+  provider: ollama
+  name: llama3.1:8b
+  timeout_sec: 45
+
+agent:
+  mode: direct
+  self_consistency_k: 7
+  use_verifier: true
+  use_query_rewrite: true
+  use_symbolic_solver: false
+  routing_conf_threshold: 0.67
+  routing_fast_k: 3
+  system_prompt: >
+    You are a careful assistant. Reason step by step internally.
+    Answer with only the final answer.
+
+run:
+  max_tasks: 0

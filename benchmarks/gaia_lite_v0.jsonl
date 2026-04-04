@@ -1,0 +1,6 @@
+{"id":"gaia-lite-001","question":"What is 2+2?","answer":"4","split":"test","metadata":{"source":"gaia-lite-synthetic","type":"math"}}
+{"id":"gaia-lite-002","question":"What is the capital of France?","answer":"Paris","split":"test","metadata":{"source":"gaia-lite-synthetic","type":"fact"}}
+{"id":"gaia-lite-003","question":"If a train leaves at 09:00 and arrives at 10:30, how many minutes is the trip?","answer":"90","split":"test","metadata":{"source":"gaia-lite-synthetic","type":"math"}}
+{"id":"gaia-lite-004","question":"Which number is larger: 19 or 91?","answer":"91","split":"test","metadata":{"source":"gaia-lite-synthetic","type":"comparison"}}
+{"id":"gaia-lite-005","question":"What day comes after Monday?","answer":"Tuesday","split":"test","metadata":{"source":"gaia-lite-synthetic","type":"sequence"}}
+

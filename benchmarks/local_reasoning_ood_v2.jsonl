@@ -1,0 +1,21 @@
+{"id":"v2-001","question":"What is 17 + 25?","answer":"42","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v2-002","question":"Compute 81 - 14.","answer":"67","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v2-003","question":"Which number is larger: 128 or 97?","answer":"128","split":"iid","metadata":{"type":"comparison"}}
+{"id":"v2-004","question":"If a trip starts at 08:40 and ends at 10:05, what is the duration in minutes?","answer":"85","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"v2-005","question":"What day comes 3 days after Monday?","answer":"Thursday","split":"iid","metadata":{"type":"weekday_offset"}}
+{"id":"v2-006","question":"Start with 7, double it, then subtract 3. Final value?","answer":"11","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v2-007","question":"Take 5, add 4, then multiply by 3. Final value?","answer":"27","split":"iid","metadata":{"type":"multi_step"}}
+{"id":"v2-008","question":"What is 13 * 6?","answer":"78","split":"iid","metadata":{"type":"arith_bin"}}
+{"id":"v2-009","question":"Which is greater: 1001 or 1100?","answer":"1100","split":"iid","metadata":{"type":"comparison"}}
+{"id":"v2-010","question":"A train leaves at 22:10 and arrives at 00:05. Duration in minutes?","answer":"115","split":"iid","metadata":{"type":"time_delta"}}
+{"id":"v2-011","question":"Find the result of 17 plus 25.","answer":"42","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v2-012","question":"Evaluate 81 minus 14.","answer":"67","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v2-013","question":"Pick the bigger value: 128 or 97.","answer":"128","split":"ood","metadata":{"type":"comparison"}}
+{"id":"v2-014","question":"Journey from 08:40 to 10:05. Total minutes traveled?","answer":"85","split":"ood","metadata":{"type":"time_delta"}}
+{"id":"v2-015","question":"Which weekday is three days after Monday?","answer":"Thursday","split":"ood","metadata":{"type":"weekday_offset"}}
+{"id":"v2-016","question":"Begin at 7, multiply by 2, then take away 3. What's left?","answer":"11","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v2-017","question":"Start at 5, add 4, and then multiply the result by 3.","answer":"27","split":"ood","metadata":{"type":"multi_step"}}
+{"id":"v2-018","question":"Multiply 13 by 6.","answer":"78","split":"ood","metadata":{"type":"arith_bin"}}
+{"id":"v2-019","question":"Select the greater number: 1001 or 1100.","answer":"1100","split":"ood","metadata":{"type":"comparison"}}
+{"id":"v2-020","question":"From 22:10 until 00:05, how many minutes elapse?","answer":"115","split":"ood","metadata":{"type":"time_delta"}}
+

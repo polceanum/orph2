@@ -1,0 +1,20 @@
+seed: 0
+
+benchmark:
+  name: local_reasoning_ood_mock
+  path: benchmarks/local_reasoning_ood_v1.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: plan_then_solve
+  system_prompt: >
+    You are a careful assistant. Reason step by step internally.
+    Answer with only the final answer.
+
+run:
+  max_tasks: 0
+

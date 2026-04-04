@@ -5,12 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ood-solver"
 version = "0.1.0"
-description = "Phase-1 structured OOD solver prototype"
+description = "LLM-agent orchestration and OOD-focused evaluation framework"
 requires-python = ">=3.10"
 dependencies = [
-  "torch>=2.2",
-  "numpy>=1.26",
   "pyyaml>=6.0",
-  "matplotlib>=3.8",
-  "tqdm>=4.66",
+  "numpy>=1.26",
 ]

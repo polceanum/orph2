@@ -1,14 +1,13 @@
 seed: 0
 
 benchmark:
-  name: minigrid_door_key_ppo_quick_fullobs
+  name: minigrid_distshift_ppo_quick_full
   observation_mode: full
   minigrid:
     iid_env_ids:
-      - MiniGrid-DoorKey-5x5-v0
-      - MiniGrid-DoorKey-6x6-v0
+      - MiniGrid-DistShift1-v0
     ood_env_ids:
-      - MiniGrid-DoorKey-8x8-v0
+      - MiniGrid-DistShift2-v0
   train:
     total_timesteps: 100000
     learning_rate: 3e-4
@@ -23,5 +22,5 @@ benchmark:
     device: cpu
     verbose: 1
   eval:
-    episodes: 50
+    episodes: 100
     max_steps: 200

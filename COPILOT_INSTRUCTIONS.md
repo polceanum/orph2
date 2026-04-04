@@ -1,54 +1,40 @@
 # Copilot Instructions
 
-This repository is intentionally narrowed to an RL-first OOD adaptation track.
+This repository is now intentionally narrowed to an LLM-agent benchmark track.
 
 ## Preserve
 
-- Explicit structured reasoning state (approaches/rules/belief updates).
-- Comparable recurrent RL baseline.
-- Explicit IID/OOD split evaluation.
+- Reproducible benchmark configs (`configs/llm_agent/`)
+- Agent orchestration logic (`llm_agent/`)
+- Traceable evaluation outputs (`artifacts/llm_agent/`)
 
 ## Prioritize
 
-- OOD accuracy delta: `structured - recurrent_rl`.
-- OOD accuracy delta: `structured - standard_actor_critic`.
-- Stable multi-seed evidence.
-- Fast failure detection via live JSONL logs.
-- Chance and oracle context in result summaries.
-- Oracle quality gate must pass before using oracle transfer claims.
+- Benchmark-grounded metrics with transparent settings
+- Controlled comparisons of orchestration policies (`direct` vs `plan_then_solve`)
+- Fast iteration on Mac (mock/local first, hosted API runs second)
+- Explicit experiment logging in `docs/EXPERIMENT_LOG.md`
 
 ## Scientific Protocol
 
-- Always report IID + OOD for every compared method.
-- Always include:
-  - `structured`
-  - `recurrent_rl`
-  - `standard_actor_critic`
-  - random-chance reference
-  - oracle reference (when available)
+- Keep model, benchmark split, and task budget fixed when comparing methods.
+- Record provider/model/version in result artifacts.
 - Use:
   - 1 seed for exploratory iteration
-  - 3 seeds for candidate acceptance
-  - 5 seeds for stronger claims
-- Use `scripts/make_oracle_config.py` + `scripts/validate_oracle_quality.py` for oracle runs.
-- Reject variants that degrade either:
-  - absolute structured OOD
-  - or structured-vs-baseline OOD delta
-- After each experiment batch, update `docs/EXPERIMENT_LOG.md` with:
-  - Question, Hypothesis, Controls, Runs, Result, Interpretation, Decision, Next step.
-- Include failed/null findings in the log to avoid selection bias.
-- Treat 1-seed findings as exploratory; require 3/5 seeds for acceptance/strong claims.
+  - 3+ seeds for acceptance claims
+- Treat 1-seed findings as exploratory.
+- Include failed/null findings in the log.
+- Do not claim SOTA from local fixtures; use them as smoke/on-ramp only.
 
 ## Standardization Path
 
-- Keep current bridge tasks for continuity.
-- Add standardized benchmarks gradually; do not replace existing tests abruptly.
-- Prefer controlled benchmark additions where all methods share:
-  - same train budget
-  - same seeds
-  - same eval protocol
+- Keep `gaia_lite_v0` as local runner sanity check.
+- Add adapters/configs for modern agent benchmarks incrementally:
+  - SWE-bench Pro (coding agents)
+  - GAIA/Gaia2 (general assistant tasks)
+  - WebArena/VisualWebArena/WorkArena (web agents)
 
 ## Avoid
 
-- Re-introducing broad legacy experiment paths.
-- Implicit OOD claims without explicit `eval.ood` shift.
+- Re-activating RL-first legacy code as the main research path.
+- Mixing legacy and active benchmarks in one headline metric.

@@ -1,0 +1,25 @@
+seed: 0
+
+benchmark:
+  name: local_reasoning_ood_mock_adaptive
+  path: benchmarks/local_reasoning_ood_v1.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: adaptive_router
+  self_consistency_k: 7
+  use_verifier: true
+  use_query_rewrite: true
+  routing_conf_threshold: 0.67
+  routing_fast_k: 3
+  system_prompt: >
+    You are a careful assistant. Reason step by step internally.
+    Answer with only the final answer.
+
+run:
+  max_tasks: 0
+

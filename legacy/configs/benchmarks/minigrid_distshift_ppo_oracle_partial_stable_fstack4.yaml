@@ -1,0 +1,38 @@
+seed: 0
+
+benchmark:
+  name: minigrid_distshift_ppo_oracle_partial_stable_fstack4
+  observation_mode: partial
+  minigrid:
+    navigation_only_actions: true
+    frame_stack: 4
+    iid_env_ids:
+      - MiniGrid-DistShift1-v0
+      - MiniGrid-DistShift2-v0
+    ood_env_ids:
+      - MiniGrid-DistShift2-v0
+  train:
+    total_timesteps: 200000
+    eval_every_timesteps: 20000
+    eval_episodes: 40
+    early_stop_patience_evals: 4
+    use_best_model: true
+    learning_rate: 3e-4
+    n_steps: 512
+    batch_size: 256
+    n_epochs: 8
+    gamma: 0.995
+    gae_lambda: 0.97
+    clip_range: 0.2
+    ent_coef: 0.02
+    vf_coef: 0.5
+    device: cpu
+    verbose: 1
+    policy: MlpPolicy
+    policy_kwargs:
+      net_arch:
+        - 256
+        - 256
+  eval:
+    episodes: 100
+    max_steps: 200
