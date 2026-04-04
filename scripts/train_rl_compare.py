@@ -348,7 +348,13 @@ def train_step_recurrent(
     }, baseline
 
 
-def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = None) -> dict:
+def run_seed(
+    cfg: dict,
+    seed: int,
+    device: str,
+    log_jsonl_path: Path | None = None,
+    global_log_jsonl_path: Path | None = None,
+) -> dict:
     cfg = json.loads(json.dumps(cfg))
     cfg["seed"] = seed
     set_seed(seed)
@@ -535,10 +541,8 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
                         k: float(sums_a[k] / n)
                         for k in ("loss", "ce", "pg", "reward", "probe_entropy", "value_loss", "value_pred_mean")
                     }
-                append_jsonl(
-                    log_jsonl_path,
-                    payload,
-                )
+                append_jsonl(log_jsonl_path, payload)
+                append_jsonl(global_log_jsonl_path, payload)
 
         n_epoch = float(max(steps_per_epoch, 1))
         epoch_train = {
@@ -565,6 +569,12 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
         )
         monitor_struct_iid = float(structured_iid_monitor["seq_acc"])
         monitor_recur_iid = float(recurrent_iid_monitor["seq_acc"])
+        monitor_std_iid = None
+        if standard_ac is not None:
+            standard_iid_monitor = evaluate_model(
+                standard_ac, iid_env, device, num_batches=monitor_batches, batch_size=batch_size, structured=False
+            )
+            monitor_std_iid = float(standard_iid_monitor["seq_acc"])
         improved = monitor_struct_iid > (best_structured_iid + early_stop_min_delta)
         if improved:
             best_structured_iid = monitor_struct_iid
@@ -572,29 +582,34 @@ def run_seed(cfg: dict, seed: int, device: str, log_jsonl_path: Path | None = No
         else:
             bad_epochs += 1
         should_stop = early_stop_patience > 0 and bad_epochs >= early_stop_patience
-        append_jsonl(
-            log_jsonl_path,
-            {
-                "seed": seed,
-                "epoch": epoch,
-                "phase": "epoch_end",
-                "entropy_weight": float(entropy_weight_epoch),
-                "train": epoch_train,
-                "monitor": {
-                    "structured_iid_seq_acc": monitor_struct_iid,
-                    "recurrent_iid_seq_acc": monitor_recur_iid,
-                    "best_structured_iid_seq_acc": best_structured_iid,
-                    "bad_epochs": bad_epochs,
-                    "early_stop_patience": early_stop_patience,
-                    "early_stop_min_delta": early_stop_min_delta,
-                    "should_stop": should_stop,
-                },
+        epoch_payload = {
+            "seed": seed,
+            "epoch": epoch,
+            "phase": "epoch_end",
+            "entropy_weight": float(entropy_weight_epoch),
+            "train": epoch_train,
+            "monitor": {
+                "structured_iid_seq_acc": monitor_struct_iid,
+                "recurrent_iid_seq_acc": monitor_recur_iid,
+                "best_structured_iid_seq_acc": best_structured_iid,
+                "bad_epochs": bad_epochs,
+                "early_stop_patience": early_stop_patience,
+                "early_stop_min_delta": early_stop_min_delta,
+                "should_stop": should_stop,
             },
+        }
+        if monitor_std_iid is not None:
+            epoch_payload["monitor"]["standard_ac_iid_seq_acc"] = monitor_std_iid
+        append_jsonl(log_jsonl_path, epoch_payload)
+        append_jsonl(global_log_jsonl_path, epoch_payload)
+        monitor_msg = (
+            f"seed={seed} epoch={epoch} monitor("
+            f"struct_iid={monitor_struct_iid:.3f}, recur_iid={monitor_recur_iid:.3f}"
         )
-        print(
-            f"seed={seed} epoch={epoch} monitor(struct_iid={monitor_struct_iid:.3f}, recur_iid={monitor_recur_iid:.3f}, bad_epochs={bad_epochs})",
-            flush=True,
-        )
+        if monitor_std_iid is not None:
+            monitor_msg += f", std_ac_iid={monitor_std_iid:.3f}"
+        monitor_msg += f", bad_epochs={bad_epochs})"
+        print(monitor_msg, flush=True)
         if should_stop:
             print(f"seed={seed} early stop at epoch={epoch} (no IID improvement)", flush=True)
             break
@@ -631,12 +646,21 @@ def main():
     for seed in seeds:
         print(f"=== RL seed {seed} ===")
         seed_log_path = None
+        global_log_path = None
         if log_jsonl_base is not None:
             if log_jsonl_base.suffix:
                 seed_log_path = log_jsonl_base.with_name(f"{log_jsonl_base.stem}_seed{seed}{log_jsonl_base.suffix}")
+                global_log_path = log_jsonl_base
             else:
                 seed_log_path = log_jsonl_base / f"seed_{seed}.jsonl"
-        per_seed[str(seed)] = run_seed(cfg, seed, device, log_jsonl_path=seed_log_path)
+                global_log_path = log_jsonl_base / "all_seeds.jsonl"
+        per_seed[str(seed)] = run_seed(
+            cfg,
+            seed,
+            device,
+            log_jsonl_path=seed_log_path,
+            global_log_jsonl_path=global_log_path,
+        )
 
     rows = {"structured_iid": [], "structured_ood": [], "recurrent_iid": [], "recurrent_ood": []}
     use_standard_ac = False

@@ -15,6 +15,7 @@ This repository is intentionally narrowed to an RL-first OOD adaptation track.
 - Stable multi-seed evidence.
 - Fast failure detection via live JSONL logs.
 - Chance and oracle context in result summaries.
+- Oracle quality gate must pass before using oracle transfer claims.
 
 ## Scientific Protocol
 
@@ -29,6 +30,7 @@ This repository is intentionally narrowed to an RL-first OOD adaptation track.
   - 1 seed for exploratory iteration
   - 3 seeds for candidate acceptance
   - 5 seeds for stronger claims
+- Use `scripts/make_oracle_config.py` + `scripts/validate_oracle_quality.py` for oracle runs.
 - Reject variants that degrade either:
   - absolute structured OOD
   - or structured-vs-baseline OOD delta

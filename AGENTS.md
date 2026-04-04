@@ -31,6 +31,12 @@ conda run -n orpheus python scripts/train_rl_compare.py \
 - random chance reference
 - oracle reference (trained on target OOD split)
 
+## Oracle Quality Gate
+
+- Generate oracle config from primary with `scripts/make_oracle_config.py`.
+- Validate oracle quality with `scripts/validate_oracle_quality.py`.
+- If oracle does not beat primary by minimum margin, mark oracle as underfit and do not use transfer-ratio claims.
+
 ## Reporting Command (Summary)
 
 ```bash
