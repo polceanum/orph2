@@ -1,0 +1,22 @@
+seed: 0
+
+benchmark:
+  name: gsm8k_main_mock_adaptive
+  path: benchmarks/external/gsm8k_main_test_oodheuristic_v0.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: adaptive_router
+  use_query_rewrite: true
+  self_consistency_k: 5
+  use_verifier: true
+  use_symbolic_solver: false
+  routing_conf_threshold: 0.67
+  routing_fast_k: 3
+
+run:
+  max_tasks: 0

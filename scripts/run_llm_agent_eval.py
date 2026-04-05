@@ -5,7 +5,6 @@ import argparse
 import json
 import random
 import sys
-import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,7 @@ if str(ROOT) not in sys.path:
 from llm_agent.agent import AgentConfig, OrchestratedAgent
 from llm_agent.benchmarks import load_jsonl_benchmark
 from llm_agent.eval import exact_match
-from llm_agent.model_clients import MockClient, OllamaClient, OpenAIResponsesClient
+from llm_agent.model_clients import MockClient
 from llm_agent.types import Prediction
 
 
@@ -36,15 +35,10 @@ def build_client(cfg: dict[str, Any], seed: int):
     provider = str(_cfg_get(cfg, "model.provider", "mock")).lower()
     if provider == "mock":
         return MockClient(seed=seed)
-    if provider == "ollama":
-        model = str(_cfg_get(cfg, "model.name", "llama3.1:8b"))
-        base_url = str(_cfg_get(cfg, "model.base_url", "http://127.0.0.1:11434/api/generate"))
-        return OllamaClient(model=model, base_url=base_url)
-    if provider == "openai":
-        model = str(_cfg_get(cfg, "model.name", "gpt-4.1-mini"))
-        base_url = str(_cfg_get(cfg, "model.base_url", "https://api.openai.com/v1/responses"))
-        return OpenAIResponsesClient(model=model, base_url=base_url)
-    raise ValueError(f"Unsupported model.provider={provider!r}")
+    raise ValueError(
+        f"Unsupported model.provider={provider!r}. "
+        "This repository is configured for local-only runs; use model.provider=mock."
+    )
 
 
 def main() -> None:
@@ -52,6 +46,9 @@ def main() -> None:
     ap.add_argument("--config", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--progress-every", type=int, default=0)
+    ap.add_argument("--no-save-predictions", action="store_true")
+    ap.add_argument("--emit-full-json", action="store_true")
     args = ap.parse_args()
 
     cfg = yaml.safe_load(Path(args.config).read_text())
@@ -69,15 +66,9 @@ def main() -> None:
     if not tasks:
         raise ValueError("No tasks selected. Check benchmark.path and benchmark.split.")
 
-    try:
-        client = build_client(cfg, seed=seed)
-        fallback_to_mock_on_api_error = bool(_cfg_get(cfg, "model.fallback_to_mock_on_api_error", False))
-        fallback_used = False
-    except RuntimeError as exc:
-        raise RuntimeError(
-            f"{exc} Use model.provider=mock for offline smoke runs, "
-            "or set OPENAI_API_KEY for provider=openai."
-        ) from exc
+    client = build_client(cfg, seed=seed)
+    fallback_to_mock_on_api_error = False
+    fallback_used = False
     agent_cfg = AgentConfig(
         mode=str(_cfg_get(cfg, "agent.mode", "plan_then_solve")),
         system_prompt=str(_cfg_get(cfg, "agent.system_prompt", AgentConfig.system_prompt)),
@@ -92,19 +83,28 @@ def main() -> None:
     agent = OrchestratedAgent(client=client, cfg=agent_cfg)
 
     preds: list[Prediction] = []
+    n_done = 0
+    n_correct = 0
+    split_stats: dict[str, list[int]] = {}
     for t in tasks:
-        try:
-            pred_answer, trace = agent.solve(t.question)
-        except urllib.error.HTTPError as exc:
-            if fallback_to_mock_on_api_error and int(getattr(exc, "code", 0)) == 429:
-                fallback_used = True
-                client = MockClient(seed=seed)
-                agent = OrchestratedAgent(client=client, cfg=agent_cfg)
-                pred_answer, trace = agent.solve(t.question)
-                trace = {**trace, "fallback": "mock_after_429"}
-            else:
-                raise
+        pred_answer, trace = agent.solve(t.question)
         ok = exact_match(pred_answer, t.answer)
+        n_done += 1
+        n_correct += 1 if ok else 0
+        split_stats.setdefault(t.split, [0, 0])
+        split_stats[t.split][0] += 1
+        split_stats[t.split][1] += 1 if ok else 0
+        if args.progress_every > 0 and (n_done % args.progress_every == 0 or n_done == len(tasks)):
+            parts = []
+            for sk, (sn, sc) in sorted(split_stats.items()):
+                sacc = (float(sc) / float(sn)) if sn > 0 else 0.0
+                parts.append(f"{sk}={sacc:.3f} ({sc}/{sn})")
+            print(
+                f"[progress] {n_done}/{len(tasks)} "
+                f"acc={float(n_correct)/float(n_done):.3f} "
+                + " ".join(parts),
+                flush=True,
+            )
         preds.append(
             Prediction(
                 task_id=t.task_id,
@@ -143,8 +143,9 @@ def main() -> None:
             "fallback_to_mock_on_api_error": fallback_to_mock_on_api_error,
             "fallback_used": fallback_used,
         },
-        "predictions": [p.__dict__ for p in preds],
     }
+    if not args.no_save_predictions:
+        out["predictions"] = [p.__dict__ for p in preds]
     route_counts: dict[str, int] = {}
     for p in preds:
         route = p.trace.get("route")
@@ -157,7 +158,16 @@ def main() -> None:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(out, indent=2))
-    print(json.dumps(out, indent=2))
+    if args.emit_full_json:
+        print(json.dumps(out, indent=2))
+    else:
+        summary_view = {
+            "config": out["config"],
+            "seed": out["seed"],
+            "summary": out["summary"],
+            "settings": out["settings"],
+        }
+        print(json.dumps(summary_view, indent=2))
     print(f"Wrote LLM-agent eval report to {out_path}", flush=True)
 
 

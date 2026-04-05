@@ -30,13 +30,29 @@ def _difficulty_bucket(question: str) -> str:
     return "arith_general"
 
 
-def _ood_split(question: str, mode: str) -> str:
+def _token_len(question: str) -> int:
+    return len(re.findall(r"\w+", question.lower()))
+
+
+def _n_numbers(question: str) -> int:
+    return len(re.findall(r"-?\d+(?:\.\d+)?", question))
+
+
+def _ood_split(question: str, mode: str, length_threshold: int | None = None) -> str:
     if mode == "none":
         return "test"
-    # Deterministic keyword-style split for local OOD probing.
-    # This is not a canonical paper split; keep claims labeled accordingly.
+    # Deterministic local OOD probing splits.
     bucket = _difficulty_bucket(question)
-    return "ood" if bucket in {"ratio_percent", "time_rate"} else "iid"
+    if mode == "heuristic":
+        return "ood" if bucket in {"ratio_percent", "time_rate"} else "iid"
+    if mode == "type_holdout_strict":
+        n_num = _n_numbers(question)
+        return "ood" if (bucket in {"ratio_percent", "time_rate"} or n_num >= 4) else "iid"
+    if mode == "length_holdout":
+        if length_threshold is None:
+            raise ValueError("length_threshold required for length_holdout mode")
+        return "ood" if _token_len(question) > length_threshold else "iid"
+    raise ValueError(f"Unsupported ood split mode: {mode}")
 
 
 def _load_from_hf(split: str) -> list[dict[str, Any]]:
@@ -66,9 +82,9 @@ def main() -> None:
     ap.add_argument("--max-samples", type=int, default=0, help="0 means all")
     ap.add_argument(
         "--ood-split-mode",
-        choices=["none", "heuristic"],
+        choices=["none", "heuristic", "type_holdout_strict", "length_holdout"],
         default="heuristic",
-        help="Heuristic split is for internal OOD probing only; not a canonical benchmark split.",
+        help="Local OOD probing split strategy; not a canonical benchmark split.",
     )
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -83,13 +99,20 @@ def main() -> None:
     if args.max_samples > 0:
         rows = rows[: args.max_samples]
 
+    length_threshold: int | None = None
+    if args.ood_split_mode == "length_holdout":
+        lengths = sorted(_token_len(str(r.get("question", ""))) for r in rows if str(r.get("question", "")).strip())
+        if lengths:
+            idx = int(0.65 * (len(lengths) - 1))
+            length_threshold = lengths[idx]
+
     out_rows: list[dict[str, Any]] = []
     for i, r in enumerate(rows):
         q = str(r.get("question", "")).strip()
         a = _extract_final_answer(str(r.get("answer", "")))
         if not q or not a:
             continue
-        split = _ood_split(q, mode=args.ood_split_mode)
+        split = _ood_split(q, mode=args.ood_split_mode, length_threshold=length_threshold)
         out_rows.append(
             {
                 "id": f"gsm8k-{i:06d}",
@@ -101,6 +124,8 @@ def main() -> None:
                     "source_split": args.hf_split if args.source == "hf" else "jsonl",
                     "split_mode": args.ood_split_mode,
                     "type": _difficulty_bucket(q),
+                    "token_len": _token_len(q),
+                    "n_numbers": _n_numbers(q),
                 },
             }
         )
@@ -117,6 +142,7 @@ def main() -> None:
         "source": args.source,
         "hf_split": args.hf_split,
         "ood_split_mode": args.ood_split_mode,
+        "length_threshold": length_threshold,
     }
     print(json.dumps(summary, indent=2))
 

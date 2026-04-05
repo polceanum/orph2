@@ -23,8 +23,23 @@
         "url": "https://arxiv.org/abs/2110.14168"
       },
       "metric": "accuracy",
-      "notes": "Populate paper-aligned baseline numbers from cited table/appendix before any SOTA claim.",
-      "reported_results": []
+      "notes": "Reported values below come from primary-source benchmark tables; protocol alignment (shots, CoT usage, verifier setup) is required before strict claim language.",
+      "reported_results": [
+        {
+          "name": "PaLM 540B + Chain-of-Thought",
+          "value": 58.1,
+          "unit": "percent",
+          "source_note": "NeurIPS 2022 CoT paper, benchmark summary figure.",
+          "source_url": "https://proceedings.neurips.cc/paper_files/paper/2022/file/9d5609613524ecf4f15af0f7b31abca4-Paper-Conference.pdf"
+        },
+        {
+          "name": "GPT-4 (5-shot)",
+          "value": 92.0,
+          "unit": "percent",
+          "source_note": "GPT-4 Technical Report, Table 2.",
+          "source_url": "https://cdn.openai.com/papers/gpt-4.pdf"
+        }
+      ]
     },
     "bbh": {
       "paper": {

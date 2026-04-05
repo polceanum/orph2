@@ -2,7 +2,7 @@
 
 ## Mission
 
-Optimize LLM-agent OOD performance with reproducible, benchmark-driven evaluation on Mac-friendly infrastructure.
+Optimize LLM-agent OOD performance with reproducible, benchmark-driven **local-only** evaluation.
 
 ## Canonical command
 
@@ -35,7 +35,7 @@ conda run -n orpheus python scripts/run_llm_agent_eval.py \
 - `symbolic_only` baseline when tools are enabled
 - `learned_program` baseline (train on IID, evaluate IID+OOD) when claiming learning-driven gains
 - Same model, same benchmark split, same max task count
-- If using hosted APIs, include provider/model/version metadata in outputs
+- Local-only rule: use `model.provider: mock` for all active runs.
 
 ## Research Log Requirement
 
