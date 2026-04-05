@@ -2335,3 +2335,48 @@ Decision:
 
 Next Step:
 - Implement at least one external benchmark adapter with non-mock backend and populate >=2 protocol-matched paper-reported baselines in the registry before any SOTA claims.
+
+## Iteration 11B (External Adapter Scaffolding + Reported-Baseline Comparator)
+
+Question:
+- Can we operationalize external-benchmark evaluation and paper-baseline matching in code, so fairness checks are reproducible?
+
+Hypothesis:
+- Adding a GSM8K ingestion script and a run-vs-reported comparator will make “paper match” checks concrete and auditable.
+
+Controls:
+- No core model changes.
+- Tooling/documentation iteration only.
+
+Runs:
+- Added external data adapter:
+  - `scripts/prepare_gsm8k_benchmark.py`
+- Added reported baseline comparator:
+  - `scripts/compare_with_reported_baselines.py`
+- Added configs/docs:
+  - `configs/llm_agent/gsm8k_main_mock_sota.yaml`
+  - `configs/llm_agent/gsm8k_main_mock_symbolic_only.yaml`
+  - `docs/EXTERNAL_BENCHMARK_ONRAMP.md`
+- Smoke checks:
+  - `python -m py_compile` for new scripts (pass)
+  - Comparator run:
+    - `artifacts/llm_agent/mmlu_reported_comparison_from_v6_placeholder.json`
+  - Claim-readiness run:
+    - `artifacts/llm_agent/sota_claim_readiness_mmlu_check.json` (fails by design for local/mock)
+
+Result:
+- External adapter path exists and is runnable when dataset access is available.
+- Paper-baseline comparison now has a dedicated script and output artifact.
+- Claim gate still correctly blocks SOTA wording for current local/mock setup, with explicit reasons.
+
+Interpretation:
+- Framework now supports paper-linked comparison workflow instead of ad-hoc narrative claims.
+- We still need real non-mock external benchmark runs and fuller baseline registry population to pass readiness.
+
+Decision:
+- Keep this scaffolding and make it part of standard workflow.
+- Treat current output as process hardening, not performance progress.
+
+Next Step:
+- Execute non-mock external runs (Ollama/OpenAI) on prepared benchmark files.
+- Populate at least one benchmark key in `LITERATURE_BASELINE_REGISTRY.json` with >=2 protocol-matched reported baselines.

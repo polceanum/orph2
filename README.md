@@ -71,9 +71,12 @@ conda run -n orpheus python scripts/run_llm_agent_eval.py \
 - `scripts/compare_llm_agent_matrix.py`: cross-benchmark multi-seed comparison vs reference method
 - `scripts/report_component_contributions.py`: ablation-style component contribution deltas
 - `scripts/validate_sota_claim_readiness.py`: SOTA-claim guardrail checker
+- `scripts/prepare_gsm8k_benchmark.py`: external GSM8K JSONL adapter/prep
+- `scripts/compare_with_reported_baselines.py`: compare run metrics to paper-reported baselines
 - `docs/SYSTEM_COMPONENTS_AND_CONTRIBUTIONS.md`: component map + contribution semantics
 - `docs/SOTA_BASELINE_POLICY.md`: strict claim policy
 - `docs/LITERATURE_BASELINE_REGISTRY.json`: paper-grounded comparator registry
+- `docs/EXTERNAL_BENCHMARK_ONRAMP.md`: external benchmark workflow
 
 ## Reality Grounding
 
