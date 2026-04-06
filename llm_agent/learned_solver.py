@@ -368,6 +368,7 @@ class LearnedSolverConfig:
     epochs: int = 120
     lr: float = 3e-2
     weight_decay: float = 1e-4
+    class_balance: bool = False
 
 
 class LinearTypeHead(nn.Module):
@@ -391,13 +392,20 @@ def train_type_predictor(
     y = torch.tensor([l2i[l] for l in labels], dtype=torch.long)
     x = torch.stack([vectorize(q, cfg.input_dim) for q in questions], dim=0)
 
+    class_weights = None
+    if cfg.class_balance:
+        counts = torch.bincount(y, minlength=len(uniq)).float().clamp_min(1.0)
+        # Inverse-frequency weighting to reduce majority-label domination.
+        class_weights = (counts.sum() / counts)
+        class_weights = class_weights / class_weights.mean()
+
     torch.manual_seed(seed)
     model = LinearTypeHead(cfg.input_dim, len(uniq))
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
     for _ in range(cfg.epochs):
         logits = model(x)
-        loss = F.cross_entropy(logits, y)
+        loss = F.cross_entropy(logits, y, weight=class_weights)
         opt.zero_grad()
         loss.backward()
         opt.step()

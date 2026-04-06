@@ -28,6 +28,10 @@ class AgentConfig:
     source_bias_learned: float = 0.22
     source_bias_symbolic: float = 0.18
     learned_min_confidence: float = 0.60
+    long_question_token_threshold: int = 45
+    long_question_learned_boost: float = 0.06
+    long_question_sota_boost: float = 0.04
+    long_question_symbolic_penalty: float = 0.03
     use_symbolic_solver: bool = False
     symbolic_solver_variant: str = "full"  # full | generic
     learned_solver_path: str | None = None
@@ -3823,6 +3827,7 @@ class OrchestratedAgent:
         source: str,
         peer_counts: Counter[str],
         confidence: float | None,
+        question_token_count: int,
     ) -> float:
         ans = _clean_answer(answer)
         if _is_low_confidence_answer(ans):
@@ -3850,6 +3855,14 @@ class OrchestratedAgent:
         }
         score += source_bias.get(source, 0.0)
 
+        if question_token_count >= int(self.cfg.long_question_token_threshold):
+            if source == "learned":
+                score += float(self.cfg.long_question_learned_boost)
+            elif source == "sota":
+                score += float(self.cfg.long_question_sota_boost)
+            elif source == "symbolic":
+                score -= float(self.cfg.long_question_symbolic_penalty)
+
         # Cross-module agreement bonus.
         score += float(self.cfg.routing_agreement_weight) * max(0, peer_counts.get(ans, 0) - 1)
 
@@ -3862,10 +3875,12 @@ class OrchestratedAgent:
 
     def _select_best_candidate(
         self,
+        question: str,
         candidates: list[tuple[str, str, float | None]],
     ) -> tuple[str, str, list[dict]]:
         # candidates: (source, answer, confidence)
         counts = Counter([_clean_answer(a) for _, a, _ in candidates if _clean_answer(a)])
+        q_tok_count = len(re.findall(r"[A-Za-z0-9]+", question))
         scored: list[dict] = []
         for src, ans, conf in candidates:
             clean = _clean_answer(ans)
@@ -3874,7 +3889,7 @@ class OrchestratedAgent:
                     "source": src,
                     "answer": clean,
                     "confidence": conf,
-                    "score": self._answer_quality_score(clean, src, counts, conf),
+                    "score": self._answer_quality_score(clean, src, counts, conf, q_tok_count),
                 }
             )
         best = max(scored, key=lambda x: x["score"])
@@ -3926,6 +3941,7 @@ class OrchestratedAgent:
             if sym is None:
                 return sota_ans, sota_trace
             selected_src, selected_ans, scored = self._select_best_candidate(
+                q,
                 [("sota", sota_ans, None), ("symbolic", sym, 1.0)]
             )
             return selected_ans, {
@@ -3988,7 +4004,7 @@ class OrchestratedAgent:
                     "routing_conf_threshold": float(self.cfg.routing_conf_threshold),
                 }
 
-            selected_src, selected_ans, scored = self._select_best_candidate(candidates)
+            selected_src, selected_ans, scored = self._select_best_candidate(q, candidates)
             out_trace = {
                 "mode": "adaptive_router",
                 "route": "balanced_modules",

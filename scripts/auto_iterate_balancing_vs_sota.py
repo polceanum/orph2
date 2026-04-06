@@ -60,8 +60,8 @@ def matrix_metrics(path: Path, method: str) -> dict[str, float]:
 
 
 def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict[str, float]:
-    # Conservative candidate set to avoid overfitting via massive search.
-    candidates = [
+    # Conservative base set + nearby perturbations for length-focused tuning.
+    base_candidates = [
         {
             "routing_conf_threshold": 0.60,
             "routing_fast_k": 3,
@@ -71,6 +71,10 @@ def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict
             "source_bias_learned": 0.25,
             "source_bias_symbolic": 0.18,
             "learned_min_confidence": 0.75,
+            "long_question_token_threshold": 45,
+            "long_question_learned_boost": 0.06,
+            "long_question_sota_boost": 0.04,
+            "long_question_symbolic_penalty": 0.03,
         },
         {
             "routing_conf_threshold": 0.55,
@@ -81,6 +85,10 @@ def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict
             "source_bias_learned": 0.30,
             "source_bias_symbolic": 0.16,
             "learned_min_confidence": 0.80,
+            "long_question_token_threshold": 42,
+            "long_question_learned_boost": 0.08,
+            "long_question_sota_boost": 0.05,
+            "long_question_symbolic_penalty": 0.03,
         },
         {
             "routing_conf_threshold": 0.67,
@@ -91,6 +99,10 @@ def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict
             "source_bias_learned": 0.35,
             "source_bias_symbolic": 0.14,
             "learned_min_confidence": 0.85,
+            "long_question_token_threshold": 40,
+            "long_question_learned_boost": 0.10,
+            "long_question_sota_boost": 0.06,
+            "long_question_symbolic_penalty": 0.04,
         },
         {
             "routing_conf_threshold": 0.60,
@@ -101,6 +113,10 @@ def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict
             "source_bias_learned": 0.10,
             "source_bias_symbolic": 0.28,
             "learned_min_confidence": 0.90,
+            "long_question_token_threshold": 45,
+            "long_question_learned_boost": 0.08,
+            "long_question_sota_boost": 0.05,
+            "long_question_symbolic_penalty": 0.04,
         },
         {
             "routing_conf_threshold": 0.67,
@@ -111,8 +127,26 @@ def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict
             "source_bias_learned": 0.05,
             "source_bias_symbolic": 0.30,
             "learned_min_confidence": 0.95,
+            "long_question_token_threshold": 42,
+            "long_question_learned_boost": 0.06,
+            "long_question_sota_boost": 0.04,
+            "long_question_symbolic_penalty": 0.05,
         },
     ]
+
+    candidates: list[dict[str, float]] = list(base_candidates)
+    deltas = [
+        {"routing_conf_threshold": 0.55, "routing_fast_k": 5, "source_bias_learned": 0.12, "source_bias_symbolic": 0.24, "learned_min_confidence": 0.85, "long_question_token_threshold": 40, "long_question_learned_boost": 0.10, "long_question_sota_boost": 0.06, "long_question_symbolic_penalty": 0.04},
+        {"routing_conf_threshold": 0.60, "routing_fast_k": 5, "source_bias_learned": 0.08, "source_bias_symbolic": 0.30, "learned_min_confidence": 0.90, "long_question_token_threshold": 42, "long_question_learned_boost": 0.06, "long_question_sota_boost": 0.04, "long_question_symbolic_penalty": 0.05},
+        {"routing_conf_threshold": 0.67, "routing_fast_k": 3, "source_bias_learned": 0.15, "source_bias_symbolic": 0.24, "learned_min_confidence": 0.85, "long_question_token_threshold": 45, "long_question_learned_boost": 0.08, "long_question_sota_boost": 0.05, "long_question_symbolic_penalty": 0.03},
+        {"routing_conf_threshold": 0.55, "routing_fast_k": 3, "source_bias_learned": 0.05, "source_bias_symbolic": 0.32, "learned_min_confidence": 0.95, "long_question_token_threshold": 40, "long_question_learned_boost": 0.12, "long_question_sota_boost": 0.06, "long_question_symbolic_penalty": 0.06},
+    ]
+    for b in base_candidates:
+        for d in deltas:
+            c = dict(b)
+            c.update(d)
+            if c not in candidates:
+                candidates.append(c)
 
     tmp_dir = ROOT / "artifacts" / "llm_agent" / "auto_iter"
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -147,7 +181,7 @@ def choose_best_candidate(py: str, tag: str, base_cfgs: dict[str, Path]) -> dict
         avg_ood = sum(oods.values()) / max(1, len(oods))
         length_ood = oods.get("lengthholdout", 0.0)
         avg_non_symbolic = sum(non_symbolic_fracs) / max(1, len(non_symbolic_fracs))
-        score = avg_ood + 0.25 * length_ood + 0.05 * avg_non_symbolic
+        score = avg_ood + 0.35 * length_ood + 0.05 * avg_non_symbolic
         rec = {
             "cand": cand,
             "oods": oods,
@@ -178,34 +212,39 @@ def main() -> None:
     ap.add_argument("--target-main-ood", type=float, default=0.15)
     ap.add_argument("--target-type-ood", type=float, default=0.12)
     ap.add_argument("--target-length-ood", type=float, default=0.05)
+    ap.add_argument("--train-class-balance", action="store_true")
+    ap.add_argument("--train-augment-shape", action="store_true")
     args = ap.parse_args()
 
     py = sys.executable
 
     # Ensure learned checkpoint exists (IID-only training).
     learned_ckpt = ROOT / "artifacts" / "llm_agent" / "learned" / "gsm8k_main_iid_typehead_s0.pt"
-    run(
-        [
-            py,
-            str(ROOT / "scripts" / "train_learned_solver.py"),
-            "--benchmark",
-            ",".join(
-                [
-                    str(ROOT / "benchmarks" / "external" / "gsm8k_main_test_oodheuristic_v0.jsonl"),
-                    str(ROOT / "benchmarks" / "external" / "gsm8k_main_test_ood_typeholdout_v1.jsonl"),
-                    str(ROOT / "benchmarks" / "external" / "gsm8k_main_test_ood_lengthholdout_v1.jsonl"),
-                ]
-            ),
-            "--train-split",
-            "iid",
-            "--label-mode",
-            "executor_hybrid",
-            "--seed",
-            "0",
-            "--out",
-            str(learned_ckpt),
-        ]
-    )
+    train_cmd = [
+        py,
+        str(ROOT / "scripts" / "train_learned_solver.py"),
+        "--benchmark",
+        ",".join(
+            [
+                str(ROOT / "benchmarks" / "external" / "gsm8k_main_test_oodheuristic_v0.jsonl"),
+                str(ROOT / "benchmarks" / "external" / "gsm8k_main_test_ood_typeholdout_v1.jsonl"),
+                str(ROOT / "benchmarks" / "external" / "gsm8k_main_test_ood_lengthholdout_v1.jsonl"),
+            ]
+        ),
+        "--train-split",
+        "iid",
+        "--label-mode",
+        "executor_hybrid",
+        "--seed",
+        "0",
+        "--out",
+        str(learned_ckpt),
+    ]
+    if args.train_class_balance:
+        train_cmd.append("--class-balance")
+    if args.train_augment_shape:
+        train_cmd.append("--augment-shape")
+    run(train_cmd)
 
     history: list[dict[str, Any]] = []
 

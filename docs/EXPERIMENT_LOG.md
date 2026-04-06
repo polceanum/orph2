@@ -4683,3 +4683,68 @@ Decision:
 
 Next Step:
 - Focus next on non-brittle learned-capability expansion (type coverage/calibration), then rerun 3-seed strict loop for length-holdout target crossing.
+
+## Iteration 12R (Learned Robustness + Length-Aware Routing Retune)
+
+Question:
+- Can combined non-rule upgrades (class-balanced learned training + shape augmentation + length-aware routing priors) lift length-holdout OOD above `0.05` while preserving main/type gains?
+
+Hypothesis:
+- Better class balance and numeric-shape augmentation in learned training, plus long-question routing preference for learned/SOTA over symbolic, should improve difficult length-shift OOD cases.
+
+Controls:
+- Same local mock provider, strict IID-wall protocol, and 3-seed evaluation (`0,1,2`).
+- Same benchmark family (`main`, `typeholdout`, `lengthholdout`) and same method matrix in strict honesty checks.
+
+Runs:
+- Code changes:
+  - `llm_agent/learned_solver.py`: optional class-balanced cross-entropy for type head.
+  - `scripts/train_learned_solver.py`: `--class-balance`, `--augment-shape` options.
+  - `llm_agent/agent.py`: length-aware candidate scoring knobs:
+    - `long_question_token_threshold`
+    - `long_question_learned_boost`
+    - `long_question_sota_boost`
+    - `long_question_symbolic_penalty`
+  - `scripts/run_llm_agent_eval.py`: config plumbing for new routing knobs.
+  - `scripts/auto_iterate_balancing_vs_sota.py`: expanded candidate search and stronger length-weighted objective.
+- Strict gate checks:
+  - `conda run -n orpheus python -m pytest -q` (pass)
+  - `conda run -n orpheus python scripts/validate_strict_iid_rule_registry.py --agent-path llm_agent/agent.py --registry-path configs/llm_agent/iid_rule_registry_gsm8k_main.txt --benchmark-path benchmarks/external/gsm8k_main_test_oodheuristic_v0.jsonl` (pass)
+- Auto iteration run A:
+  - `conda run -n orpheus python scripts/auto_iterate_balancing_vs_sota.py --rounds 3 --seeds 0,1,2 --tag-prefix auto_balance_hybrid_multiiid_balaug --train-class-balance --train-augment-shape`
+  - history: `artifacts/llm_agent/auto_balance_hybrid_multiiid_balaug_history_20260406.json`
+- Auto iteration run B (with explicit length-aware knobs in candidate search):
+  - `conda run -n orpheus python scripts/auto_iterate_balancing_vs_sota.py --rounds 3 --seeds 0,1,2 --tag-prefix auto_balance_hybrid_multiiid_balaug_lenaware --train-class-balance --train-augment-shape`
+  - history: `artifacts/llm_agent/auto_balance_hybrid_multiiid_balaug_lenaware_history_20260406.json`
+
+Result:
+- Both runs converged to the same policy family as prior best and produced unchanged strict metrics (3 seeds):
+  - main OOD: `0.1769`
+  - type-holdout OOD: `0.1776`
+  - length-holdout OOD: `0.0448`
+- Candidate selected repeatedly:
+  - `routing_conf_threshold=0.6`
+  - `routing_fast_k=3`
+  - `routing_agreement_weight=0.2`
+  - `source_bias_fast=0.15`
+  - `source_bias_sota=0.2`
+  - `source_bias_learned=0.1`
+  - `source_bias_symbolic=0.28`
+  - `learned_min_confidence=0.9`
+  - with length-aware knobs in run B:
+    - `long_question_token_threshold=45`
+    - `long_question_learned_boost=0.08`
+    - `long_question_sota_boost=0.05`
+    - `long_question_symbolic_penalty=0.04`
+- Negative/null finding:
+  - Combined upgrades did not move the current strict frontier; length-holdout stayed below target (`0.05`).
+
+Interpretation:
+- Under current mock-backed capability ceiling, policy/training refinements appear saturated at the same stable optimum.
+- Additional gains likely require new executable capability coverage (not just reweighting/routing).
+
+Decision:
+- keep (infrastructure and knobs), but treat performance result as null.
+
+Next Step:
+- Add new generic executable coverage in learned solver for long-form multi-step patterns and evaluate with the same strict 3-seed protocol.

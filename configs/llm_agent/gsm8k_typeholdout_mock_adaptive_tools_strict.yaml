@@ -22,5 +22,9 @@ agent:
   source_bias_learned: 0.1
   source_bias_symbolic: 0.28
   learned_min_confidence: 0.9
+  long_question_token_threshold: 45
+  long_question_learned_boost: 0.08
+  long_question_sota_boost: 0.05
+  long_question_symbolic_penalty: 0.04
 run:
   max_tasks: 0

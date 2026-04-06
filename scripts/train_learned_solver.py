@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -52,6 +53,14 @@ def _executor_mapped_label(task) -> str | None:
     return mapping.get(t)
 
 
+def _shape_augment_question(text: str) -> str:
+    # Keep operation words while abstracting numeric values to improve
+    # robustness to magnitude/length shifts.
+    t = re.sub(r"\d+(?:\.\d+)?", "<num>", text)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--benchmark", required=True)
@@ -67,6 +76,8 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=120)
     ap.add_argument("--lr", type=float, default=3e-2)
     ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument("--class-balance", action="store_true")
+    ap.add_argument("--augment-shape", action="store_true")
     args = ap.parse_args()
 
     benchmark_paths = [x.strip() for x in str(args.benchmark).split(",") if x.strip()]
@@ -102,11 +113,22 @@ def main() -> None:
         questions = [q for q, _ in pairs]
         labels = [l for _, l in pairs]
 
+    if args.augment_shape:
+        aug_pairs: list[tuple[str, str]] = []
+        for q, l in zip(questions, labels):
+            q_aug = _shape_augment_question(q)
+            if q_aug != q:
+                aug_pairs.append((q_aug, l))
+        if aug_pairs:
+            questions.extend(q for q, _ in aug_pairs)
+            labels.extend(l for _, l in aug_pairs)
+
     cfg = LearnedSolverConfig(
         input_dim=args.input_dim,
         epochs=args.epochs,
         lr=args.lr,
         weight_decay=args.weight_decay,
+        class_balance=args.class_balance,
     )
     blob = train_type_predictor(questions=questions, labels=labels, cfg=cfg, seed=args.seed)
     blob["train_split"] = args.train_split
@@ -127,6 +149,8 @@ def main() -> None:
         "seed": args.seed,
         "n_train": len(questions),
         "label_mode": args.label_mode,
+        "class_balance": args.class_balance,
+        "augment_shape": args.augment_shape,
         "labels": blob["labels"],
         "train_acc": blob["train_acc"],
     }
