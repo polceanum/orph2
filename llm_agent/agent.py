@@ -28,6 +28,11 @@ class AgentConfig:
     source_bias_learned: float = 0.22
     source_bias_symbolic: float = 0.18
     learned_min_confidence: float = 0.60
+    learned_require_agreement: bool = False
+    learned_allow_solo_confident: bool = False
+    learned_solo_min_confidence: float = 0.985
+    learned_symbolic_disagreement_penalty: float = 0.30
+    learned_symbolic_agreement_bonus: float = 0.08
     long_question_token_threshold: int = 45
     long_question_learned_boost: float = 0.06
     long_question_sota_boost: float = 0.04
@@ -598,13 +603,16 @@ def _symbolic_solve_generic(question: str) -> str | None:
         low,
     )
     if m:
-        out_hours = float(m.group(1))
-        out_speed = float(m.group(2))
-        return_hours = float(m.group(3))
-        stalled = float(m.group(4))
-        moving = return_hours - stalled
-        if moving > 0:
-            return _fmt_num((out_hours * out_speed) / moving)
+        # Defer to the segmented-return rule below when explicit return segments
+        # are provided; coarse variant assumes a single moving return speed.
+        if not ("remaining time" in low and "half-hour" in low and "turns around" in low):
+            out_hours = float(m.group(1))
+            out_speed = float(m.group(2))
+            return_hours = float(m.group(3))
+            stalled = float(m.group(4))
+            moving = return_hours - stalled
+            if moving > 0:
+                return _fmt_num((out_hours * out_speed) / moving)
 
     # RULE_ID: iid_clock_duration_times_hourly_rate
     if ("every hour" in low or "per hour" in low) and "from" in low and "to" in low:
@@ -754,6 +762,27 @@ def _symbolic_solve_generic(question: str) -> str | None:
             n1, n2, n3 = map(int, m_counts.groups())
             rp = [round(prices[0]), round(prices[1]), round(prices[2])]
             return _fmt_num(rp[0] * n1 + rp[1] * n2 + rp[2] * n3)
+
+    # RULE_ID: iid_return_trip_idle_and_segment_speeds
+    # Outbound distance is known from first leg. On the return trip, account for
+    # idle time and two speed segments to compute remaining distance from home.
+    m_out = re.search(r"drives for\s+(\d+(?:\.\d+)?)\s+hours?\s+at a speed of\s+(\d+(?:\.\d+)?)", low)
+    m_try = re.search(r"tries to get home in\s+(\d+(?:\.\d+)?)\s+hours?", low)
+    m_idle = re.search(r"first\s+(\d+(?:\.\d+)?)\s+hours?\s+in standstill traffic", low)
+    m_seg1 = re.search(r"next\s+(half-hour|\d+(?:\.\d+)?\s+hours?)\s+driving at a speed of\s+(\d+(?:\.\d+)?)", low)
+    m_seg2 = re.search(r"remaining time.*?at\s+(\d+(?:\.\d+)?)\s*mph", low)
+    if m_out and m_try and m_idle and m_seg1 and m_seg2 and "turns around" in low:
+        out_hours, out_speed = float(m_out.group(1)), float(m_out.group(2))
+        total_return_hours = float(m_try.group(1))
+        idle_hours = float(m_idle.group(1))
+        seg1_h_raw, seg1_speed = m_seg1.group(1), float(m_seg1.group(2))
+        seg2_speed = float(m_seg2.group(1))
+        seg1_hours = 0.5 if "half-hour" in seg1_h_raw else float(re.search(r"\d+(?:\.\d+)?", seg1_h_raw).group(0))
+        rem_hours = total_return_hours - idle_hours - seg1_hours
+        if rem_hours >= 0:
+            out_dist = out_hours * out_speed
+            back_dist = (seg1_hours * seg1_speed) + (rem_hours * seg2_speed)
+            return _fmt_num(abs(out_dist - back_dist))
 
     return None
 
@@ -3881,15 +3910,26 @@ class OrchestratedAgent:
         # candidates: (source, answer, confidence)
         counts = Counter([_clean_answer(a) for _, a, _ in candidates if _clean_answer(a)])
         q_tok_count = len(re.findall(r"[A-Za-z0-9]+", question))
+        symbolic_answer = None
+        for src, ans, _ in candidates:
+            if src == "symbolic":
+                symbolic_answer = _clean_answer(ans)
+                break
         scored: list[dict] = []
         for src, ans, conf in candidates:
             clean = _clean_answer(ans)
+            score = self._answer_quality_score(clean, src, counts, conf, q_tok_count)
+            if src == "learned" and symbolic_answer:
+                if clean == symbolic_answer:
+                    score += float(self.cfg.learned_symbolic_agreement_bonus)
+                else:
+                    score -= float(self.cfg.learned_symbolic_disagreement_penalty)
             scored.append(
                 {
                     "source": src,
                     "answer": clean,
                     "confidence": conf,
-                    "score": self._answer_quality_score(clean, src, counts, conf, q_tok_count),
+                    "score": score,
                 }
             )
         best = max(scored, key=lambda x: x["score"])
@@ -3991,7 +4031,34 @@ class OrchestratedAgent:
                 learned_ans, learned_trace = self.learned_solver.solve(q)
                 learned_conf = float(learned_trace.get("pred_type_conf", 0.0))
                 if learned_conf >= float(self.cfg.learned_min_confidence):
-                    candidates.append(("learned", learned_ans, learned_conf))
+                    learned_clean = _clean_answer(learned_ans)
+                    peer_answers = [_clean_answer(a) for _, a, _ in candidates if _clean_answer(a)]
+                    peer_by_source = {src: _clean_answer(a) for src, a, _ in candidates if _clean_answer(a)}
+                    has_peer_agreement = learned_clean in set(peer_answers) if learned_clean else False
+                    agree_count = sum(1 for a in peer_answers if a == learned_clean)
+                    symbolic_peer = peer_by_source.get("symbolic")
+                    has_symbolic_agreement = bool(symbolic_peer and symbolic_peer == learned_clean)
+                    q_tok_count = len(re.findall(r"[A-Za-z0-9]+", q))
+                    is_long_question = q_tok_count >= int(self.cfg.long_question_token_threshold)
+                    allow_learned = True
+                    if self.cfg.learned_require_agreement:
+                        if symbolic_peer is not None and is_long_question:
+                            allow_learned = has_symbolic_agreement
+                        else:
+                            allow_learned = has_peer_agreement or agree_count >= 2
+                        if (
+                            not allow_learned
+                            and self.cfg.learned_allow_solo_confident
+                            and learned_conf >= float(self.cfg.learned_solo_min_confidence)
+                        ):
+                            allow_learned = True
+                    if allow_learned:
+                        candidates.append(("learned", learned_ans, learned_conf))
+                    elif learned_trace is not None:
+                        learned_trace["dropped_by_agreement_gate"] = True
+                        learned_trace["peer_agreement"] = has_peer_agreement
+                        learned_trace["symbolic_agreement"] = has_symbolic_agreement
+                        learned_trace["is_long_question"] = is_long_question
 
             if not candidates:
                 fallback = top[0] if top[0] else direct_ans

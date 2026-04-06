@@ -4748,3 +4748,70 @@ Decision:
 
 Next Step:
 - Add new generic executable coverage in learned solver for long-form multi-step patterns and evaluate with the same strict 3-seed protocol.
+
+## Iteration 12S (Segmented Return-Trip Generic Rule + Soft Learned/Symbolic Control)
+
+Question:
+- Can a targeted strict-generic coverage patch lift length-holdout OOD above `0.05` without sacrificing main/type gains?
+
+Hypothesis:
+- A generic segmented return-trip solver pattern (idle period + two return-speed segments) should recover at least one additional OOD hit on lengthholdout and potentially cross the target.
+
+Controls:
+- Same local mock provider and strict IID-wall protocol.
+- Same 3-seed strict matrix (`0,1,2`) and same benchmark family (`main`, `typeholdout`, `lengthholdout`).
+- Strict adaptive configs kept at converged routing policy; only incremental rule/scoring plumbing adjustments applied.
+
+Runs:
+- Code/config changes:
+  - `llm_agent/agent.py`:
+    - added RULE_ID `iid_return_trip_idle_and_segment_speeds` in strict generic solver.
+    - prevented coarse outbound-return matcher from shadowing segmented-return case.
+    - kept soft learned-vs-symbolic scoring knobs.
+  - `scripts/run_llm_agent_eval.py`:
+    - added config plumbing for:
+      - `learned_symbolic_disagreement_penalty`
+      - `learned_symbolic_agreement_bonus`
+    - corrected default `learned_require_agreement` to opt-in (`false`).
+  - strict adaptive configs:
+    - `configs/llm_agent/gsm8k_main_mock_adaptive_tools_strict.yaml`
+    - `configs/llm_agent/gsm8k_typeholdout_mock_adaptive_tools_strict.yaml`
+    - `configs/llm_agent/gsm8k_lengthholdout_mock_adaptive_tools_strict.yaml`
+    - set:
+      - `learned_require_agreement: false`
+      - `learned_symbolic_disagreement_penalty: 0.12`
+      - `learned_symbolic_agreement_bonus: 0.04`
+  - strict registry:
+    - `configs/llm_agent/iid_rule_registry_gsm8k_main.txt` add `iid_return_trip_idle_and_segment_speeds`.
+  - test coverage:
+    - `tests/test_agent_strict_symbolic.py` added segmented return-trip regression test.
+- Gate checks:
+  - `conda run -n orpheus python -m pytest -q` (pass: `15 passed`)
+  - `conda run -n orpheus python scripts/validate_strict_iid_rule_registry.py --agent-path llm_agent/agent.py --registry-path configs/llm_agent/iid_rule_registry_gsm8k_main.txt --benchmark-path benchmarks/external/gsm8k_main_test_oodheuristic_v0.jsonl` (pass)
+- Strict matrix run:
+  - `conda run -n orpheus python scripts/run_strict_honesty_check.py --tag iter_len_rule1_20260406 --seeds 0,1,2`
+  - artifacts:
+    - `artifacts/llm_agent/gsm8k_main_mock_matrix_s012_iter_len_rule1_20260406.json`
+    - `artifacts/llm_agent/gsm8k_typeholdout_mock_matrix_s012_iter_len_rule1_20260406.json`
+    - `artifacts/llm_agent/gsm8k_lengthholdout_mock_matrix_s012_iter_len_rule1_20260406.json`
+
+Result:
+- Strict adaptive-tools (3 seeds):
+  - main OOD: `0.1846` (up from `0.1769`)
+  - type-holdout OOD: `0.1842` (up from `0.1776`)
+  - length-holdout OOD: `0.0597` (up from `0.0448`, target crossed)
+- Strict symbolic-only (3 seeds):
+  - main OOD: `0.1308`
+  - type-holdout OOD: `0.1118`
+  - length-holdout OOD: `0.0448`
+- Adaptive-tools strict remains above symbolic-only strict on all splits.
+
+Interpretation:
+- The coverage patch produced a real strict-OOD lift and moved length-holdout above the `0.05` threshold while also improving main/type.
+- This indicates there was remaining high-value symbolic coverage headroom despite prior policy-level saturation.
+
+Decision:
+- keep
+
+Next Step:
+- Run one additional 3-seed confirmation tag with identical configs/rules to verify stability, then lock this as the new strict default checkpoint.

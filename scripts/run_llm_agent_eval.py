@@ -83,6 +83,15 @@ def main() -> None:
         source_bias_learned=float(_cfg_get(cfg, "agent.source_bias_learned", 0.22)),
         source_bias_symbolic=float(_cfg_get(cfg, "agent.source_bias_symbolic", 0.18)),
         learned_min_confidence=float(_cfg_get(cfg, "agent.learned_min_confidence", 0.60)),
+        learned_require_agreement=bool(_cfg_get(cfg, "agent.learned_require_agreement", False)),
+        learned_allow_solo_confident=bool(_cfg_get(cfg, "agent.learned_allow_solo_confident", False)),
+        learned_solo_min_confidence=float(_cfg_get(cfg, "agent.learned_solo_min_confidence", 0.985)),
+        learned_symbolic_disagreement_penalty=float(
+            _cfg_get(cfg, "agent.learned_symbolic_disagreement_penalty", 0.30)
+        ),
+        learned_symbolic_agreement_bonus=float(
+            _cfg_get(cfg, "agent.learned_symbolic_agreement_bonus", 0.08)
+        ),
         long_question_token_threshold=int(_cfg_get(cfg, "agent.long_question_token_threshold", 45)),
         long_question_learned_boost=float(_cfg_get(cfg, "agent.long_question_learned_boost", 0.06)),
         long_question_sota_boost=float(_cfg_get(cfg, "agent.long_question_sota_boost", 0.04)),

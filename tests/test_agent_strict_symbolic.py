@@ -241,3 +241,28 @@ def test_generic_symbolic_variant_handles_rounded_multi_item_revenue() -> None:
     assert trace["symbolic_solver_variant"] == "generic"
 
 
+def test_generic_symbolic_variant_handles_return_trip_with_idle_and_segments() -> None:
+    question = (
+        "John drives for 3 hours at a speed of 60 mph and then turns around because he realizes he "
+        "forgot something very important at home. He tries to get home in 4 hours but spends the first "
+        "2 hours in standstill traffic. He spends the next half-hour driving at a speed of 30mph, "
+        "before being able to drive the remaining time of the 4 hours going at 80 mph. "
+        "How far is he from home at the end of those 4 hours?"
+    )
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(
+            mode="direct",
+            use_symbolic_solver=True,
+            symbolic_solver_variant="generic",
+            use_query_rewrite=False,
+        ),
+    )
+
+    pred, trace = generic_agent.solve(question)
+
+    assert pred == "45"
+    assert trace["symbolic_solver_used"] is True
+    assert trace["symbolic_solver_variant"] == "generic"
+
+
