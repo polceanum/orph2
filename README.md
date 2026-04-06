@@ -1,6 +1,6 @@
 # OOD Solver (LLM-Agent Pivot)
 
-This repository now focuses on **LLM-agent orchestration and evaluation** for modern OOD-relevant benchmarks, with a strict **local-only** workflow.
+This repository now focuses on **LLM-agent orchestration and evaluation** for modern OOD-relevant benchmarks.
 
 ## Active Goal
 
@@ -8,7 +8,7 @@ Build and evaluate orchestrated LLM agents (planning + solving loops) with expli
 
 ## Quick Start
 
-Run local mock evaluation:
+Run local mock evaluation (fast debug path):
 
 ```bash
 conda run -n orpheus python scripts/run_llm_agent_eval.py \
@@ -50,7 +50,20 @@ conda run -n orpheus python scripts/run_llm_agent_eval.py \
   --out artifacts/llm_agent/local_reasoning_ood_mock_adaptive_s0.json
 ```
 
-All active configs are local-only (`model.provider: mock`).
+For external/real-model evaluation and SOTA comparison, use non-mock providers:
+
+```yaml
+model:
+  provider: ollama    # or openai
+  name: llama3.1:8b   # or gpt-4o, etc.
+  base_url: http://localhost:11434  # optional for ollama
+  temperature: 0.0
+  timeout_sec: 120
+```
+
+Claim guidance:
+- Mock runs are valid for ablations and fast iteration.
+- SOTA comparison claims should be made only from non-mock runs with matched evaluation budgets.
 
 ## Active Structure
 
@@ -84,7 +97,7 @@ Use `docs/BENCHMARK_REALITY_PROTOCOL.md` as the scientific guardrail for claims:
 
 ## Notes
 
-- This pivot is intentionally practical for Mac hardware: evaluate agent logic with local-only, reproducible mock-backed runs.
+- For practical Mac workflows, use mock for fast loops and Ollama/OpenAI for real-model checkpoints.
 - The current `gaia_lite` benchmark is a smoke/on-ramp fixture; it is not intended as a final SOTA claim benchmark.
 - The local `local_reasoning_ood_v*` ladder is for debugging/regression; it is not by itself valid external SOTA evidence.
-- External API/provider runs are intentionally removed from active workflow.
+- External/local real-provider runs are supported for SOTA-grounded comparisons.

@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 from llm_agent.agent import AgentConfig, OrchestratedAgent
 from llm_agent.benchmarks import load_jsonl_benchmark
 from llm_agent.eval import exact_match
-from llm_agent.model_clients import MockClient
+from llm_agent.model_clients import MockClient, OllamaClient, OpenAIChatClient
 from llm_agent.types import Prediction
 
 
@@ -35,10 +35,22 @@ def build_client(cfg: dict[str, Any], seed: int):
     provider = str(_cfg_get(cfg, "model.provider", "mock")).lower()
     if provider == "mock":
         return MockClient(seed=seed)
-    raise ValueError(
-        f"Unsupported model.provider={provider!r}. "
-        "This repository is configured for local-only runs; use model.provider=mock."
-    )
+    if provider == "ollama":
+        return OllamaClient(
+            model=str(_cfg_get(cfg, "model.name", "llama3.1:8b")),
+            base_url=str(_cfg_get(cfg, "model.base_url", "http://localhost:11434")),
+            temperature=float(_cfg_get(cfg, "model.temperature", 0.0)),
+            timeout_sec=int(_cfg_get(cfg, "model.timeout_sec", 120)),
+        )
+    if provider == "openai":
+        return OpenAIChatClient(
+            model=str(_cfg_get(cfg, "model.name", "gpt-4o")),
+            api_key=_cfg_get(cfg, "model.api_key", None),
+            base_url=str(_cfg_get(cfg, "model.base_url", "https://api.openai.com/v1")),
+            temperature=float(_cfg_get(cfg, "model.temperature", 0.0)),
+            timeout_sec=int(_cfg_get(cfg, "model.timeout_sec", 120)),
+        )
+    raise ValueError(f"Unsupported model.provider={provider!r}. Supported: mock, ollama, openai")
 
 
 def main() -> None:
