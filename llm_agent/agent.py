@@ -267,7 +267,11 @@ def _symbolic_solve_generic(question: str) -> str | None:
             return _fmt_num(add + float(mult) * base)
 
     # RULE_ID: iid_base_and_more_than_base_total
-    m = re.search(r"bought\s+(\d+(?:\.\d+)?)\s+\w+.*?(\d+(?:\.\d+)?)\s+more\s+\w+\s+than\s+\w+", low)
+    m = re.search(
+        r"bought\s+(\d+(?:\.\d+)?)\s+\w+(?:\s+\w+)?(?:\s+\w+)?"
+        r".*?(\d+(?:\.\d+)?)\s+more\s+\w+(?:\s+\w+)?(?:\s+\w+)?\s+than\s+\w+(?:\s+\w+)?",
+        low,
+    )
     if m and "in all" in low:
         base = float(m.group(1))
         delta = float(m.group(2))
@@ -287,7 +291,8 @@ def _symbolic_solve_generic(question: str) -> str | None:
 
     # RULE_ID: iid_two_people_multi_category_with_fewer_more
     if "while" in low and "fewer" in low and "more" in low and "how many" in low:
-        a_counts = [int(x) for x in re.findall(r"\bcaught\s+(\d+)\s+\w+", low)]
+        first_clause = low.split("while", 1)[0]
+        a_counts = [int(x) for x in re.findall(r"\b(\d+)\s+\w+", first_clause)]
         deltas = re.findall(r"(\d+)\s+(fewer|more)", low)
         if len(a_counts) >= 3 and len(deltas) >= 3:
             a1, a2, a3 = a_counts[:3]
@@ -300,7 +305,7 @@ def _symbolic_solve_generic(question: str) -> str | None:
             return _fmt_num(a1 + a2 + a3 + b1 + b2 + b3)
 
     # RULE_ID: iid_probability_percent_difference_simple
-    m = re.search(r"six-sided die.*?greater than\s+(\d+).*?two even numbers in a row", low)
+    m = re.search(r"(?:six|6)-sided die.*?greater than\s+(\d+).*?(?:two|2) even numbers in a row", low)
     if m and "percentage" in low:
         k = int(m.group(1))
         p_gt = max(0.0, (6.0 - k) / 6.0)

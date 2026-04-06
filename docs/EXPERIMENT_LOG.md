@@ -4793,6 +4793,49 @@ Decision:
 Next Step:
 - Continue targeted miss-driven generic coverage for remaining symbolic misses and run another strict 3-seed pass to test for further gains while monitoring IID-wall drift risk.
 
+## Iteration 12T (Targeted Miss Fixes, Round 3)
+
+Question:
+- Can we push strict OOD further by fixing the last recurring symbolic miss templates without violating IID-wall constraints?
+
+Hypothesis:
+- Addressing the remaining repeated symbolic misses (base+delta totals with multi-word entities, multi-category mirrored counts, and die-probability percentage difference) should improve strict adaptive-tools OOD.
+
+Controls:
+- Same mock provider, same strict matrix protocol, same seeds (`0,1,2`).
+- No architecture change; only generic symbolic rule robustness updates.
+
+Runs:
+- Validation:
+  - `conda run -n orpheus python -m pytest -q`
+  - `conda run -n orpheus python scripts/validate_strict_iid_rule_registry.py --agent-path llm_agent/agent.py --registry-path configs/llm_agent/iid_rule_registry_gsm8k_main.txt --benchmark-path benchmarks/external/gsm8k_main_test_oodheuristic_v0.jsonl`
+- Strict matrix:
+  - `conda run -n orpheus python scripts/run_strict_honesty_check.py --tag iter_len_rule4_20260406 --seeds 0,1,2`
+  - artifacts:
+    - `artifacts/llm_agent/gsm8k_main_mock_matrix_s012_iter_len_rule4_20260406.json`
+    - `artifacts/llm_agent/gsm8k_typeholdout_mock_matrix_s012_iter_len_rule4_20260406.json`
+    - `artifacts/llm_agent/gsm8k_lengthholdout_mock_matrix_s012_iter_len_rule4_20260406.json`
+
+Result:
+- Strict adaptive-tools OOD (3 seeds):
+  - main: `0.2308` (up from `0.2154`)
+  - type-holdout: `0.2303` (up from `0.2171`)
+  - length-holdout: `0.0896` (unchanged vs prior best)
+- Versus strict symbolic-only (same run):
+  - main OOD delta: `+0.0538`
+  - type-holdout OOD delta: `+0.0724`
+  - length-holdout OOD delta: `+0.0149`
+
+Interpretation:
+- Round 3 produced additional gains on main/type while preserving the improved length-holdout level above target.
+- No regression on strict IID wall or tests.
+
+Decision:
+- keep
+
+Next Step:
+- Continue iterative miss-mining, but prioritize templates that can lift length-holdout again without increasing brittleness.
+
 ## Iteration 12S (Segmented Return-Trip Generic Rule + Soft Learned/Symbolic Control)
 
 Question:
