@@ -216,3 +216,28 @@ def test_adaptive_router_with_tools_uses_balanced_module_selection() -> None:
     assert trace["selected_module"] == "symbolic"
     assert trace["used_symbolic_candidate"] is True
     assert "candidate_scores" in trace
+
+
+def test_generic_symbolic_variant_handles_rounded_multi_item_revenue() -> None:
+    question = (
+        "A seller has three items priced at $2.74, $1.87, and $2.12 per pot. "
+        "All prices are rounded to the nearest dollar. If she sells 12, 9, and 17 pots, "
+        "how much does she make?"
+    )
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(
+            mode="direct",
+            use_symbolic_solver=True,
+            symbolic_solver_variant="generic",
+            use_query_rewrite=False,
+        ),
+    )
+
+    pred, trace = generic_agent.solve(question)
+
+    assert pred == "88"
+    assert trace["symbolic_solver_used"] is True
+    assert trace["symbolic_solver_variant"] == "generic"
+
+

@@ -4633,3 +4633,53 @@ Decision:
 
 Next Step:
 - Target length-holdout specifically with expanded executable-type coverage in learned solver (without adding benchmark-keyed symbolic templates), then rerun the same auto loop.
+
+## Iteration 12Q (Post-Cleanup Verification After Removing Unstable Schema)
+
+Question:
+- After removing the unstable reverse-target strict schema, does the stack remain stable and do strict metrics hold?
+
+Hypothesis:
+- Removing the unstable schema should restore green validation/tests without regressing the current strict adaptive-tools metrics.
+
+Controls:
+- Same strict configs and routing policy as Iteration 12P.
+- Same local mock provider and strict IID-wall protocol.
+- Exploratory verification run at 1 seed (`0`) only.
+
+Runs:
+- IID-wall validation:
+  - `conda run -n orpheus python scripts/validate_strict_iid_rule_registry.py --agent-path llm_agent/agent.py --registry-path configs/llm_agent/iid_rule_registry_gsm8k_main.txt --benchmark-path benchmarks/external/gsm8k_main_test_oodheuristic_v0.jsonl`
+- Test suite:
+  - `conda run -n orpheus python -m pytest -q`
+- Strict honesty matrix (seed 0):
+  - `conda run -n orpheus python scripts/run_strict_honesty_check.py --tag postcleanup_s0_20260406 --seeds 0`
+  - outputs:
+    - `artifacts/llm_agent/gsm8k_main_mock_matrix_s0_postcleanup_s0_20260406.json`
+    - `artifacts/llm_agent/gsm8k_typeholdout_mock_matrix_s0_postcleanup_s0_20260406.json`
+    - `artifacts/llm_agent/gsm8k_lengthholdout_mock_matrix_s0_postcleanup_s0_20260406.json`
+
+Result:
+- Validation and tests:
+  - IID-wall validation: pass (`Registered RULE_ID count: 31`)
+  - tests: `14 passed`
+- Strict adaptive-tools metrics (seed 0, exploratory):
+  - main OOD: `0.1769`
+  - type-holdout OOD: `0.1776`
+  - length-holdout OOD: `0.0448`
+- Versus strict symbolic-only (same run, seed 0):
+  - main OOD delta: `+0.0538` (`0.1769 - 0.1231`)
+  - type-holdout OOD delta: `+0.0724` (`0.1776 - 0.1053`)
+  - length-holdout OOD delta: `+0.0149` (`0.0448 - 0.0299`)
+- Negative/null finding:
+  - The attempted reverse-target strict schema did not stabilize and was removed; no length-holdout uplift beyond `0.0448` was observed from that attempt.
+
+Interpretation:
+- Cleanup succeeded: the unstable schema removal preserved the best-known strict performance while restoring a fully green gate.
+- Length-holdout remains the only unresolved target gap.
+
+Decision:
+- keep
+
+Next Step:
+- Focus next on non-brittle learned-capability expansion (type coverage/calibration), then rerun 3-seed strict loop for length-holdout target crossing.

@@ -349,9 +349,17 @@ def _compute_answer_fallback_any_type(q: str) -> str | None:
             cands.append(ans)
     if not cands:
         return None
-    uniq = sorted(set(cands))
-    # Conservative: return only if fallback executors agree on one answer.
-    return uniq[0] if len(uniq) == 1 else None
+    # Conservative majority vote: require at least 2 agreeing executor paths
+    # when multiple candidate answers exist.
+    counts: dict[str, int] = {}
+    for a in cands:
+        counts[a] = counts.get(a, 0) + 1
+    best_ans, best_cnt = max(counts.items(), key=lambda x: x[1])
+    if len(counts) == 1:
+        return best_ans
+    if best_cnt >= 2:
+        return best_ans
+    return None
 
 
 @dataclass

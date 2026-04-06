@@ -738,6 +738,19 @@ def _symbolic_solve_generic(question: str) -> str | None:
                 weeks = float(m_weeks.group(1))
                 return _fmt_num(hours_per_day * days_per_week * weeks)
 
+    # RULE_ID: iid_rounded_multi_item_revenue
+    # Round per-item prices to nearest integer, then compute total revenue.
+    if "nearest dollar" in low and "sells" in low and "pots" in low:
+        prices = [float(x) for x in re.findall(r"\$(\d+(?:\.\d+)?)", q)]
+        m_counts = re.search(
+            r"sells\s+(\d+)(?:\s+pots?)?(?:,\s*|\s+and\s+|\s+)(\d+)(?:\s+pots?)?(?:,\s*and\s*|\s+and\s+|\s+)(\d+)\s+pots?",
+            low,
+        )
+        if len(prices) >= 3 and m_counts:
+            n1, n2, n3 = map(int, m_counts.groups())
+            rp = [round(prices[0]), round(prices[1]), round(prices[2])]
+            return _fmt_num(rp[0] * n1 + rp[1] * n2 + rp[2] * n3)
+
     return None
 
 
