@@ -77,7 +77,14 @@ def main() -> None:
         use_query_rewrite=bool(_cfg_get(cfg, "agent.use_query_rewrite", True)),
         routing_conf_threshold=float(_cfg_get(cfg, "agent.routing_conf_threshold", 0.6)),
         routing_fast_k=int(_cfg_get(cfg, "agent.routing_fast_k", 3)),
+        routing_agreement_weight=float(_cfg_get(cfg, "agent.routing_agreement_weight", 0.2)),
+        source_bias_fast=float(_cfg_get(cfg, "agent.source_bias_fast", 0.15)),
+        source_bias_sota=float(_cfg_get(cfg, "agent.source_bias_sota", 0.20)),
+        source_bias_learned=float(_cfg_get(cfg, "agent.source_bias_learned", 0.22)),
+        source_bias_symbolic=float(_cfg_get(cfg, "agent.source_bias_symbolic", 0.18)),
+        learned_min_confidence=float(_cfg_get(cfg, "agent.learned_min_confidence", 0.60)),
         use_symbolic_solver=bool(_cfg_get(cfg, "agent.use_symbolic_solver", False)),
+        symbolic_solver_variant=str(_cfg_get(cfg, "agent.symbolic_solver_variant", "full")),
         learned_solver_path=_cfg_get(cfg, "agent.learned_solver_path", None),
     )
     agent = OrchestratedAgent(client=client, cfg=agent_cfg)

@@ -1,0 +1,26 @@
+seed: 0
+benchmark:
+  name: gsm8k_typeholdout_mock_adaptive_tools_strict
+  path: benchmarks/external/gsm8k_main_test_ood_typeholdout_v1.jsonl
+  split: null
+model:
+  provider: mock
+  name: mock-v0
+agent:
+  mode: adaptive_router
+  use_query_rewrite: true
+  self_consistency_k: 5
+  use_verifier: true
+  use_symbolic_solver: true
+  symbolic_solver_variant: generic
+  learned_solver_path: artifacts/llm_agent/learned/gsm8k_main_iid_typehead_s0.pt
+  routing_conf_threshold: 0.6
+  routing_fast_k: 3
+  routing_agreement_weight: 0.2
+  source_bias_fast: 0.15
+  source_bias_sota: 0.2
+  source_bias_learned: 0.1
+  source_bias_symbolic: 0.28
+  learned_min_confidence: 0.9
+run:
+  max_tasks: 0

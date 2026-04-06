@@ -325,6 +325,35 @@ def _compute_answer_by_type(q: str, pred_type: str) -> str | None:
     return None
 
 
+_EXECUTOR_TYPES = [
+    "comparison",
+    "comparison_max",
+    "comparison_min",
+    "abs_diff",
+    "time_delta",
+    "time_delta_ampm",
+    "weekday_offset",
+    "half_plus",
+    "add_phrase",
+    "division",
+    "arith_bin",
+    "multi_step",
+]
+
+
+def _compute_answer_fallback_any_type(q: str) -> str | None:
+    cands: list[str] = []
+    for t in _EXECUTOR_TYPES:
+        ans = _compute_answer_by_type(q, t)
+        if ans is not None:
+            cands.append(ans)
+    if not cands:
+        return None
+    uniq = sorted(set(cands))
+    # Conservative: return only if fallback executors agree on one answer.
+    return uniq[0] if len(uniq) == 1 else None
+
+
 @dataclass
 class LearnedSolverConfig:
     input_dim: int = 2048
@@ -395,6 +424,8 @@ class LearnedTypeSolver:
             idx = int(torch.argmax(probs).item())
         pred_type = self.labels[idx]
         ans = _compute_answer_by_type(question, pred_type)
+        if ans is None:
+            ans = _compute_answer_fallback_any_type(question)
         if ans is None:
             ans = "Unknown"
         return ans, {

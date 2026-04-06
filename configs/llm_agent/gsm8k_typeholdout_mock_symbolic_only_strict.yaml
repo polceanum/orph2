@@ -1,0 +1,21 @@
+seed: 0
+
+benchmark:
+  name: gsm8k_typeholdout_mock_symbolic_only_strict
+  path: benchmarks/external/gsm8k_main_test_ood_typeholdout_v1.jsonl
+  split:
+
+model:
+  provider: mock
+  name: mock-v0
+
+agent:
+  mode: direct
+  use_symbolic_solver: true
+  symbolic_solver_variant: generic
+  use_query_rewrite: false
+  self_consistency_k: 1
+  use_verifier: false
+
+run:
+  max_tasks: 0
