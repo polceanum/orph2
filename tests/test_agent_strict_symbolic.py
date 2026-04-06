@@ -266,3 +266,77 @@ def test_generic_symbolic_variant_handles_return_trip_with_idle_and_segments() -
     assert trace["symbolic_solver_variant"] == "generic"
 
 
+def test_generic_symbolic_variant_handles_bundle_best_price_savings() -> None:
+    question = (
+        "Vincent can buy flowers in packages of 3 for $2.50 or in packages of 2 for $1. "
+        "How much money does he save by buying 18 flowers at the better price?"
+    )
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(
+            mode="direct",
+            use_symbolic_solver=True,
+            symbolic_solver_variant="generic",
+            use_query_rewrite=False,
+        ),
+    )
+    pred, _ = generic_agent.solve(question)
+    assert pred == "6"
+
+
+def test_generic_symbolic_variant_handles_more_than_and_total_together() -> None:
+    question = (
+        "After transferring to a new school, Amy made 20 more friends than Lily. "
+        "If Lily made 50 friends, how many friends do Lily and Amy have together?"
+    )
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(
+            mode="direct",
+            use_symbolic_solver=True,
+            symbolic_solver_variant="generic",
+            use_query_rewrite=False,
+        ),
+    )
+    pred, _ = generic_agent.solve(question)
+    assert pred == "120"
+
+
+def test_generic_symbolic_variant_handles_daily_rate_minus_failures() -> None:
+    question = "Ryan plants 2 flowers a day in his garden. After 15 days, how many flowers does he have if 5 did not grow?"
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(mode="direct", use_symbolic_solver=True, symbolic_solver_variant="generic", use_query_rewrite=False),
+    )
+    pred, _ = generic_agent.solve(question)
+    assert pred == "25"
+
+
+def test_generic_symbolic_variant_handles_more_than_times_base() -> None:
+    question = (
+        "In a candy machine, there are 22 more than four times the number of pink gumballs as there are blue gumballs. "
+        "If there are 12 blue gumballs how many pink ones are there?"
+    )
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(mode="direct", use_symbolic_solver=True, symbolic_solver_variant="generic", use_query_rewrite=False),
+    )
+    pred, _ = generic_agent.solve(question)
+    assert pred == "70"
+
+
+def test_generic_symbolic_variant_handles_twice_target_with_over_and_drop() -> None:
+    question = (
+        "Henry is making cookies for a local baking competition. He wants to make twice as many as he did last year. "
+        "When he finishes baking, he realizes he actually baked 15 more cookies than he meant to. "
+        "He drops 5 of his cookies as he is putting them out to cool, and now has a total of 110 cookies. "
+        "How many cookies did Henry bake last year?"
+    )
+    generic_agent = OrchestratedAgent(
+        MockClient(seed=0),
+        AgentConfig(mode="direct", use_symbolic_solver=True, symbolic_solver_variant="generic", use_query_rewrite=False),
+    )
+    pred, _ = generic_agent.solve(question)
+    assert pred == "50"
+
+

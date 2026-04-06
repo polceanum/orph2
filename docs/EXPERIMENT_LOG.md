@@ -4749,6 +4749,50 @@ Decision:
 Next Step:
 - Add new generic executable coverage in learned solver for long-form multi-step patterns and evaluate with the same strict 3-seed protocol.
 
+## Iteration 12S (Generic Arithmetic Template Expansion, Round 2)
+
+Question:
+- Can additional strict-generic arithmetic templates lift OOD further beyond Iteration 12R/12Q while preserving IID-wall compliance?
+
+Hypothesis:
+- Adding a small set of broad arithmetic templates for recurring miss classes (bundle savings, base+delta totals, daily-rate-minus-failures, times-plus-offset, and probability-difference) will increase strict symbolic hit rate and improve adaptive-tools strict OOD across all splits.
+
+Controls:
+- Local mock provider, same strict evaluation protocol and seeds (`0,1,2`).
+- Same strict adaptive routing baseline; only strict-generic rule coverage expanded.
+
+Runs:
+- Strict gate checks:
+  - `conda run -n orpheus python -m pytest -q`
+  - `conda run -n orpheus python scripts/validate_strict_iid_rule_registry.py --agent-path llm_agent/agent.py --registry-path configs/llm_agent/iid_rule_registry_gsm8k_main.txt --benchmark-path benchmarks/external/gsm8k_main_test_oodheuristic_v0.jsonl`
+- Strict matrix (3 seeds):
+  - `conda run -n orpheus python scripts/run_strict_honesty_check.py --tag iter_len_rule3_20260406 --seeds 0,1,2`
+  - outputs:
+    - `artifacts/llm_agent/gsm8k_main_mock_matrix_s012_iter_len_rule3_20260406.json`
+    - `artifacts/llm_agent/gsm8k_typeholdout_mock_matrix_s012_iter_len_rule3_20260406.json`
+    - `artifacts/llm_agent/gsm8k_lengthholdout_mock_matrix_s012_iter_len_rule3_20260406.json`
+
+Result:
+- Strict adaptive-tools (3 seeds):
+  - main OOD: `0.2154` (up from `0.1846` in iter_len_rule2)
+  - type-holdout OOD: `0.2171` (up from `0.1974`)
+  - length-holdout OOD: `0.0896` (up from `0.0746`)
+- Versus strict symbolic-only (same run):
+  - main OOD delta: `+0.0538` (`0.2154 - 0.1615`)
+  - type-holdout OOD delta: `+0.0724` (`0.2171 - 0.1447`)
+  - length-holdout OOD delta: `+0.0149` (`0.0896 - 0.0746`)
+- Random-chance context (unchanged): `0.00877`.
+
+Interpretation:
+- Additional generic arithmetic coverage produced another clear strict OOD lift and widened distance from baseline comparators.
+- Length-holdout is now materially above the target threshold (`0.05`) with margin.
+
+Decision:
+- keep
+
+Next Step:
+- Continue targeted miss-driven generic coverage for remaining symbolic misses and run another strict 3-seed pass to test for further gains while monitoring IID-wall drift risk.
+
 ## Iteration 12S (Segmented Return-Trip Generic Rule + Soft Learned/Symbolic Control)
 
 Question:

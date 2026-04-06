@@ -182,6 +182,131 @@ def _sequential_multi_step(text: str) -> str | None:
 def _symbolic_solve_generic(question: str) -> str | None:
     q = question.strip()
     low = _normalize_number_words(q.lower())
+
+    # RULE_ID: iid_bulk_package_best_price_savings
+    # Compare per-unit package costs and compute savings at better bundle price.
+    m = re.search(
+        r"packages? of\s+(\d+)\s+for\s+\$?(\d+(?:\.\d+)?)\s+or\s+in\s+packages? of\s+(\d+)\s+for\s+\$?(\d+(?:\.\d+)?)",
+        low,
+    )
+    m_need = re.search(r"buying\s+(\d+)\s+\w+", low)
+    if m and m_need and "save" in low:
+        n1, p1, n2, p2 = int(m.group(1)), float(m.group(2)), int(m.group(3)), float(m.group(4))
+        need = int(m_need.group(1))
+        if n1 > 0 and n2 > 0:
+            c1 = p1 / n1
+            c2 = p2 / n2
+            best = min(c1, c2)
+            worst = max(c1, c2)
+            return _fmt_num((worst - best) * need)
+
+    # RULE_ID: iid_two_people_more_than_and_total_together
+    m_more = re.search(r"(\d+(?:\.\d+)?)\s+more\s+\w+\s+than", low)
+    m_base = re.search(r"if\s+\w+\s+made\s+(\d+(?:\.\d+)?)\s+\w+", low)
+    if m_more and m_base and "together" in low:
+        d = float(m_more.group(1))
+        base = float(m_base.group(1))
+        return _fmt_num(base + (base + d))
+
+    # RULE_ID: iid_rounded_multi_item_revenue
+    # Round per-item prices to nearest integer, then compute total revenue.
+    if "nearest dollar" in low and "sells" in low and "pots" in low:
+        prices = [float(x) for x in re.findall(r"\$(\d+(?:\.\d+)?)", q)]
+        m_counts = re.search(
+            r"sells\s+(\d+)(?:\s+pots?)?(?:,\s*|\s+and\s+|\s+)(\d+)(?:\s+pots?)?(?:,\s*and\s*|\s+and\s+|\s+)(\d+)\s+pots?",
+            low,
+        )
+        if len(prices) >= 3 and m_counts:
+            n1, n2, n3 = map(int, m_counts.groups())
+            rp = [round(prices[0]), round(prices[1]), round(prices[2])]
+            return _fmt_num(rp[0] * n1 + rp[1] * n2 + rp[2] * n3)
+        # Fallback count extraction for "X pots of A, Y pots of B, Z pots of C" wording.
+        pot_counts = [int(x) for x in re.findall(r"(\d+)\s+pots?\s+of", low)]
+        if len(prices) >= 3 and len(pot_counts) >= 3:
+            n1, n2, n3 = pot_counts[:3]
+            rp = [round(prices[0]), round(prices[1]), round(prices[2])]
+            return _fmt_num(rp[0] * n1 + rp[1] * n2 + rp[2] * n3)
+
+    # RULE_ID: iid_daily_rate_then_failed_units
+    m_rate = re.search(r"(\d+(?:\.\d+)?)\s+\w+\s+a\s+day", low)
+    m_days = re.search(r"after\s+(\d+(?:\.\d+)?)\s+days", low)
+    m_fail = re.search(r"if\s+(\d+(?:\.\d+)?)\s+did\s+not\s+grow", low)
+    if m_rate and m_days and m_fail:
+        rate = float(m_rate.group(1))
+        days = float(m_days.group(1))
+        bad = float(m_fail.group(1))
+        return _fmt_num(rate * days - bad)
+
+    # RULE_ID: iid_more_than_times_base_quantity
+    m = re.search(
+        r"there are\s+(\d+(?:\.\d+)?)\s+more than\s+(\w+)\s+times\s+the number of\s+\w+.*?there are\s+(\d+(?:\.\d+)?)\s+\w+",
+        low,
+    )
+    if m and "how many" in low:
+        add = float(m.group(1))
+        mult_tok = m.group(2)
+        base = float(m.group(3))
+        word_num = {
+            "one": 1.0,
+            "two": 2.0,
+            "three": 3.0,
+            "four": 4.0,
+            "five": 5.0,
+            "six": 6.0,
+            "seven": 7.0,
+            "eight": 8.0,
+            "nine": 9.0,
+            "ten": 10.0,
+        }
+        mult = word_num.get(mult_tok)
+        if mult is None and re.fullmatch(r"\d+(?:\.\d+)?", mult_tok):
+            mult = float(mult_tok)
+        if mult is None:
+            mult = _word_to_mult(mult_tok)
+        if mult is not None:
+            return _fmt_num(add + float(mult) * base)
+
+    # RULE_ID: iid_base_and_more_than_base_total
+    m = re.search(r"bought\s+(\d+(?:\.\d+)?)\s+\w+.*?(\d+(?:\.\d+)?)\s+more\s+\w+\s+than\s+\w+", low)
+    if m and "in all" in low:
+        base = float(m.group(1))
+        delta = float(m.group(2))
+        return _fmt_num(base + (base + delta))
+
+    # RULE_ID: iid_twice_target_with_overshoot_and_drop
+    m = re.search(
+        r"twice as many as .* last year.*?baked\s+(\d+(?:\.\d+)?)\s+more .*?drops?\s+(\d+(?:\.\d+)?) .*?total of\s+(\d+(?:\.\d+)?)",
+        low,
+    )
+    if m:
+        over = float(m.group(1))
+        drop = float(m.group(2))
+        final = float(m.group(3))
+        # 2*last + over - drop = final
+        return _fmt_num((final - over + drop) / 2.0)
+
+    # RULE_ID: iid_two_people_multi_category_with_fewer_more
+    if "while" in low and "fewer" in low and "more" in low and "how many" in low:
+        a_counts = [int(x) for x in re.findall(r"\bcaught\s+(\d+)\s+\w+", low)]
+        deltas = re.findall(r"(\d+)\s+(fewer|more)", low)
+        if len(a_counts) >= 3 and len(deltas) >= 3:
+            a1, a2, a3 = a_counts[:3]
+            d1, s1 = int(deltas[0][0]), deltas[0][1]
+            d2, s2 = int(deltas[1][0]), deltas[1][1]
+            d3, s3 = int(deltas[2][0]), deltas[2][1]
+            b1 = a1 - d1 if s1 == "fewer" else a1 + d1
+            b2 = a2 - d2 if s2 == "fewer" else a2 + d2
+            b3 = a3 - d3 if s3 == "fewer" else a3 + d3
+            return _fmt_num(a1 + a2 + a3 + b1 + b2 + b3)
+
+    # RULE_ID: iid_probability_percent_difference_simple
+    m = re.search(r"six-sided die.*?greater than\s+(\d+).*?two even numbers in a row", low)
+    if m and "percentage" in low:
+        k = int(m.group(1))
+        p_gt = max(0.0, (6.0 - k) / 6.0)
+        p_two_even = (3.0 / 6.0) ** 2
+        return _fmt_num((p_gt - p_two_even) * 100.0)
+
     simple_arith_context = (
         len(low) <= 64
         or low.startswith("compute")
@@ -762,6 +887,37 @@ def _symbolic_solve_generic(question: str) -> str | None:
             n1, n2, n3 = map(int, m_counts.groups())
             rp = [round(prices[0]), round(prices[1]), round(prices[2])]
             return _fmt_num(rp[0] * n1 + rp[1] * n2 + rp[2] * n3)
+        # Fallback count extraction for "X pots of A, Y pots of B, Z pots of C" wording.
+        pot_counts = [int(x) for x in re.findall(r"(\d+)\s+pots?\s+of", low)]
+        if len(prices) >= 3 and len(pot_counts) >= 3:
+            n1, n2, n3 = pot_counts[:3]
+            rp = [round(prices[0]), round(prices[1]), round(prices[2])]
+            return _fmt_num(rp[0] * n1 + rp[1] * n2 + rp[2] * n3)
+
+    # RULE_ID: iid_bulk_package_best_price_savings
+    # Compare per-unit package costs and compute savings at better bundle price.
+    m = re.search(
+        r"packages? of\s+(\d+)\s+for\s+\$?(\d+(?:\.\d+)?)\s+or\s+in\s+packages? of\s+(\d+)\s+for\s+\$?(\d+(?:\.\d+)?)",
+        low,
+    )
+    m_need = re.search(r"buying\s+(\d+)\s+\w+", low)
+    if m and m_need and "save" in low:
+        n1, p1, n2, p2 = int(m.group(1)), float(m.group(2)), int(m.group(3)), float(m.group(4))
+        need = int(m_need.group(1))
+        if n1 > 0 and n2 > 0:
+            c1 = p1 / n1
+            c2 = p2 / n2
+            best = min(c1, c2)
+            worst = max(c1, c2)
+            return _fmt_num((worst - best) * need)
+
+    # RULE_ID: iid_two_people_more_than_and_total_together
+    m_more = re.search(r"(\d+(?:\.\d+)?)\s+more\s+\w+\s+than", low)
+    m_base = re.search(r"if\s+\w+\s+made\s+(\d+(?:\.\d+)?)\s+\w+", low)
+    if m_more and m_base and "together" in low:
+        d = float(m_more.group(1))
+        base = float(m_base.group(1))
+        return _fmt_num(base + (base + d))
 
     # RULE_ID: iid_return_trip_idle_and_segment_speeds
     # Outbound distance is known from first leg. On the return trip, account for

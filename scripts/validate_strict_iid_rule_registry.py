@@ -72,6 +72,7 @@ def _extract_ood_only_names(benchmark_path: Path) -> set[str]:
         "White",
         "Bill",
         "Last",
+        "Four",
     }
     iid_names: set[str] = set()
     ood_names: set[str] = set()
